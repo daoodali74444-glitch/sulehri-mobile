@@ -431,59 +431,85 @@ function renderHome() {
 /* ===================== MAIN NAV + MEGA MENU ============================ */
 const NAV_TABS = {
   phones: {
-    main: 'Phones',
-    columns: [
-      { title: '📂 Categories', type: 'sub', values: ['Mobile Phones'] },
-      { title: '🏷️ Shop by Brand', type: 'brand', values: null }, // null = brands present in catalog
-      { title: '🧠 RAM', type: 'ram', values: ['4GB', '6GB', '8GB', '12GB', '16GB'] },
-      { title: '💾 Storage', type: 'storage', values: ['64GB', '128GB', '256GB', '512GB', '1TB'] },
-      { title: '📶 PTA Status', type: 'pta', values: ['PTA Approved', 'Non-PTA', 'CPID'] }
+    main: 'Phones', headTitle: 'Mobile Sales & Purchase', icon: '📱', flyout: 'pta',
+    tiles: [
+      { sub: 'New Phones', icon: '✨' },
+      { sub: 'Box Pack Phones', icon: '📦' },
+      { sub: 'Used Phones', icon: '♻️' }
     ]
   },
   accessories: {
-    main: 'Accessories',
-    columns: [
-      { title: '📂 Categories', type: 'sub', values: ['Chargers', 'Handsfree', 'Back Covers', 'Glass Protectors', 'Data Cables'] },
-      { title: '🏷️ Shop by Brand', type: 'brand', values: null }
+    main: 'Accessories', headTitle: 'Accessories', icon: '🎧', flyout: 'products',
+    tiles: [
+      { sub: 'Chargers', icon: '🔌' }, { sub: 'Handsfree', icon: '🎧' },
+      { sub: 'Back Covers', icon: '📲' }, { sub: 'Glass Protectors', icon: '🛡️' },
+      { sub: 'Data Cables', icon: '🔗' }
     ]
   },
   parts: {
-    main: 'Parts',
-    columns: [
-      { title: '📂 Categories', type: 'sub', values: ['Units', 'Sub-boards', 'Strips', 'OCA Glass'] },
-      { title: '🏷️ Shop by Brand', type: 'brand', values: null }
+    main: 'Parts', headTitle: 'Parts & Units', icon: '🧩', flyout: 'products',
+    tiles: [
+      { sub: 'Units', icon: '🖥️' }, { sub: 'Sub-boards', icon: '🧩' },
+      { sub: 'Strips', icon: '🔩' }, { sub: 'OCA Glass', icon: '🔷' }
     ]
   }
 };
-let megaOpenTab = null, megaCloseTimer = null;
-function megaValues(tab, col) {
-  const inMain = state.catalog.filter(p => String(p.Main_Category) === tab.main);
-  let vals;
-  if (col.type === 'brand') {
-    vals = Array.from(new Set(inMain.map(p => String(p.Brand || '')).filter(Boolean))).sort();
-  } else {
-    const field = FIELD_OF[col.type];
-    vals = (col.values || []).filter(v => inMain.some(p => String(p[field] || '') === v));
-  }
-  return vals.map(v => ({ value: v, count: inMain.filter(p => String(p[FIELD_OF[col.type]] || '') === v).length }));
+let megaOpenTab = null, megaCloseTimer = null, flyFor = '';
+function tileImage(main, sub) {
+  const p = state.catalog.find(x => String(x.Main_Category) === main && String(x.Sub_Category) === sub && x.Image_1);
+  return p ? String(p.Image_1) : '';
+}
+function tileCount(main, sub) {
+  return state.catalog.filter(x => String(x.Main_Category) === main && String(x.Sub_Category) === sub).length;
 }
 function buildMega(tabKey) {
   const tab = NAV_TABS[tabKey];
   if (!tab) return '';
-  const cols = tab.columns.map(col => {
-    const items = megaValues(tab, col);
-    if (!items.length) return '';
-    return '<div class="mega-col"><h4>' + esc(col.title) + '</h4>' +
-      items.map(it => '<button type="button" class="mega-link" data-mega-main="' + esc(tab.main) +
-        '" data-mega-key="' + col.type + '" data-mega-value="' + esc(it.value) + '">' + esc(it.value) +
-        ' <span class="count">(' + it.count + ')</span></button>').join('') + '</div>';
+  const tiles = tab.tiles.map((t, i) => {
+    const img = tileImage(tab.main, t.sub);
+    const n = tileCount(tab.main, t.sub);
+    return '<button type="button" class="mega-tile" style="animation-delay:' + (i * 60) + 'ms" data-tile-main="' + esc(tab.main) +
+      '" data-tile-sub="' + esc(t.sub) + '">' +
+      '<span class="tile-circle">' + (img ? '<img src="' + esc(img) + '" alt="" onerror="this.remove()">' : '') +
+      '<span class="tile-emoji">' + t.icon + '</span></span>' +
+      '<span class="tile-label">' + esc(t.sub) + '</span>' +
+      '<span class="tile-count">' + n + ' product' + (n === 1 ? '' : 's') + '</span></button>';
   }).join('');
-  return '<div class="mega-head"><strong>' + esc(tab.main === 'Phones' ? 'Mobile Sales & Purchase' : tab.main) +
-    '</strong><button type="button" class="mega-link mega-all" data-mega-main="' + esc(tab.main) + '">View all →</button></div>' +
-    '<div class="mega-cols">' + cols + '</div>';
+  return '<div class="mega-head"><strong>' + esc(tab.headTitle) + '</strong>' +
+    '<span class="mega-sub">Hover a category — more options open beside it</span></div>' +
+    '<div class="mega-body"><div class="mega-tiles">' + tiles + '</div>' +
+    '<div class="mega-flyout" id="megaFlyout" hidden></div></div>' +
+    '<div class="mega-foot"><button type="button" class="mega-viewall" data-mega-main="' + esc(tab.main) +
+    '">View All ' + esc(tab.headTitle) + ' →</button></div>';
+}
+function renderFlyout(tabKey, tile) {
+  const tab = NAV_TABS[tabKey];
+  const fly = $('megaFlyout');
+  if (!tab || !fly) return;
+  const main = tab.main, sub = tile.dataset.tileSub;
+  flyFor = main + '|' + sub;
+  const inSub = state.catalog.filter(p => String(p.Main_Category) === main && String(p.Sub_Category) === sub);
+  let html = '<h4>' + esc(sub) + '</h4>';
+  if (tab.flyout === 'pta') {
+    const ptas = ['PTA Approved', 'Non-PTA', 'CPID'].filter(v => inSub.some(p => String(p.PTA_Status) === v));
+    html += ptas.map(v => '<button type="button" class="fly-link" data-fly-main="' + esc(main) +
+      '" data-fly-sub="' + esc(sub) + '" data-fly-pta="' + esc(v) + '">📶 ' + esc(v) +
+      ' <span class="count">(' + inSub.filter(p => String(p.PTA_Status) === v).length + ')</span></button>').join('');
+    if (!ptas.length) html += '<p class="fly-note">Is category mein abhi products nahi hain.</p>';
+  } else {
+    if (inSub.length) html += '<p class="fly-note">⭐ Popular in ' + esc(sub) + '</p>';
+    html += inSub.slice(0, 4).map(p => '<button type="button" class="fly-link" data-view="' + esc(p.Product_ID) + '">' +
+      esc(productTitle(p)) + ' <span class="count">' + money(p.Active_Price) + '</span></button>').join('');
+    if (!inSub.length) html += '<p class="fly-note">Is category mein abhi products nahi hain.</p>';
+  }
+  html += '<button type="button" class="fly-link fly-all" data-fly-main="' + esc(main) +
+    '" data-fly-sub="' + esc(sub) + '">View all ' + esc(sub) + ' →</button>';
+  fly.innerHTML = html;
+  fly.hidden = false;
 }
 function openMega(tabKey) {
   clearTimeout(megaCloseTimer);
+  flyFor = '';
   const panel = $('megaPanel');
   panel.innerHTML = buildMega(tabKey);
   panel.hidden = false;
@@ -497,6 +523,17 @@ function closeMega() {
   document.querySelectorAll('.nav-tab.has-menu').forEach(t => t.setAttribute('aria-expanded', 'false'));
 }
 function scheduleCloseMega() { clearTimeout(megaCloseTimer); megaCloseTimer = setTimeout(closeMega, 250); }
+function setCatHero(o) {
+  $('catHero').hidden = false;
+  $('catHeroImg').innerHTML = o.img ? '<img src="' + esc(o.img) + '" alt="">' : '<span>' + (o.icon || '🛍️') + '</span>';
+  $('catHeroTitle').textContent = o.title;
+  $('catHeroCrumb').textContent = o.crumb;
+  $('catHeroCount').textContent = applyFilters(null).length + ' products';
+}
+function clearCatHero() { $('catHero').hidden = true; }
+function tabKeyOfMain(mainCat) {
+  return Object.keys(NAV_TABS).find(k => NAV_TABS[k].main === mainCat) || null;
+}
 function goTab(tabKey) {
   closeMega();
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabKey));
@@ -506,16 +543,25 @@ function goTab(tabKey) {
   if (!tab) return;
   Object.keys(FIELD_OF).forEach(k => state.filters[k].clear());
   state.filters.main.add(tab.main);
+  setCatHero({ icon: tab.icon, title: tab.headTitle, crumb: 'Home / ' + tab.headTitle });
   showView('shop');
   refreshShop();
 }
-function megaGo(mainCat, key, value) {
+function megaGo(mainCat, pairs) {
   closeMega();
   Object.keys(FIELD_OF).forEach(k => state.filters[k].clear());
   state.filters.main.add(mainCat);
-  if (key && value) state.filters[key].add(value);
-  document.querySelectorAll('.nav-tab').forEach(t =>
-    t.classList.toggle('active', NAV_TABS[t.dataset.tab] && NAV_TABS[t.dataset.tab].main === mainCat));
+  (pairs || []).forEach(pr => state.filters[pr[0]].add(pr[1]));
+  const tk = tabKeyOfMain(mainCat);
+  const tab = tk ? NAV_TABS[tk] : null;
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tk));
+  const subPair = (pairs || []).filter(pr => pr[0] === 'sub')[0];
+  if (tab && subPair) {
+    const tile = tab.tiles.filter(t => t.sub === subPair[1])[0] || {};
+    setCatHero({ icon: tile.icon || tab.icon, img: tileImage(mainCat, subPair[1]), title: subPair[1], crumb: 'Home / ' + tab.headTitle + ' / ' + subPair[1] });
+  } else if (tab) {
+    setCatHero({ icon: tab.icon, title: tab.headTitle, crumb: 'Home / ' + tab.headTitle });
+  }
   showView('shop');
   refreshShop();
 }
@@ -865,7 +911,7 @@ function renderSuggestions() {
 /* ============================ 16. EVENTS + INIT ========================= */
 function bindEvents() {
   $('logoBtn').addEventListener('click', () => showView('home'));
-  $('btnShopAll').addEventListener('click', () => { showView('shop'); refreshShop(); });
+  $('btnShopAll').addEventListener('click', () => { clearCatHero(); showView('shop'); refreshShop(); });
   $('trackBtnTop').addEventListener('click', () => {
     showView('repair');
     setTimeout(() => { const a = $('trackAnchor'); if (a) a.scrollIntoView({ behavior: 'smooth' }); }, 80);
@@ -893,8 +939,24 @@ function bindEvents() {
     $('megaPanel').addEventListener('mouseenter', () => clearTimeout(megaCloseTimer));
   }
   $('megaPanel').addEventListener('click', e => {
-    const link = e.target.closest('[data-mega-main]');
-    if (link) megaGo(link.dataset.megaMain, link.dataset.megaKey || null, link.dataset.megaValue || null);
+    const fly = e.target.closest('[data-fly-main]');
+    if (fly) {
+      const pairs = [['sub', fly.dataset.flySub]];
+      if (fly.dataset.flyPta) pairs.push(['pta', fly.dataset.flyPta]);
+      megaGo(fly.dataset.flyMain, pairs);
+      return;
+    }
+    const tile = e.target.closest('[data-tile-main]');
+    if (tile) { megaGo(tile.dataset.tileMain, [['sub', tile.dataset.tileSub]]); return; }
+    const all = e.target.closest('[data-mega-main]');
+    if (all) { megaGo(all.dataset.megaMain, []); return; }
+    if (e.target.closest('[data-view]')) closeMega();
+  });
+  $('megaPanel').addEventListener('mouseover', e => {
+    const tile = e.target.closest('[data-tile-main]');
+    if (tile && megaOpenTab && flyFor !== tile.dataset.tileMain + '|' + tile.dataset.tileSub) {
+      renderFlyout(megaOpenTab, tile);
+    }
   });
   document.addEventListener('click', e => { if (!e.target.closest('#mainNav')) closeMega(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMega(); });
@@ -1018,8 +1080,8 @@ function bindEvents() {
     if (nav) {
       const n = nav.dataset.nav;
       if (n === 'home') showView('home');
-      if (n === 'categories') { showView('shop'); refreshShop(); openFiltersDrawer(); }
-      if (n === 'search') { showView('shop'); $('searchInput').focus(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+      if (n === 'categories') { clearCatHero(); showView('shop'); refreshShop(); openFiltersDrawer(); }
+      if (n === 'search') { clearCatHero(); showView('shop'); $('searchInput').focus(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
       if (n === 'cart') openCart();
       if (n === 'account') showView('account');
       return;

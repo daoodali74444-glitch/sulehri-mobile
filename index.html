@@ -45,7 +45,7 @@
   <nav class="main-nav" id="mainNav" aria-label="Shop sections">
     <div class="main-nav-inner" id="mainNavInner">
       <button type="button" class="nav-tab" data-tab="home">🏠 Home</button>
-      <button type="button" class="nav-tab has-menu" data-tab="phones" aria-haspopup="true" aria-expanded="false">📱 Mobile Sales &amp; Purchase <span class="nav-caret">▾</span></button>
+      <button type="button" class="nav-tab has-menu" data-tab="phones" aria-haspopup="true" aria-expanded="false">📱 Mobile <span class="nav-caret">▾</span></button>
       <button type="button" class="nav-tab has-menu" data-tab="accessories" aria-haspopup="true" aria-expanded="false">🎧 Accessories <span class="nav-caret">▾</span></button>
       <button type="button" class="nav-tab has-menu" data-tab="parts" aria-haspopup="true" aria-expanded="false">🧩 Parts <span class="nav-caret">▾</span></button>
       <button type="button" class="nav-tab" data-tab="repair">🛠️ Repairing</button>
@@ -87,6 +87,14 @@
 
   <!-- ================= VIEW: SHOP ================= -->
   <section class="view" id="viewShop" hidden>
+    <div class="cat-hero" id="catHero" hidden>
+      <div class="cat-hero-img" id="catHeroImg"></div>
+      <div>
+        <div class="cat-hero-crumb" id="catHeroCrumb"></div>
+        <h2 id="catHeroTitle"></h2>
+        <div class="cat-hero-count" id="catHeroCount"></div>
+      </div>
+    </div>
     <div class="shop-layout">
 
       <!-- Filters: sidebar (desktop) / drawer (mobile) -->
