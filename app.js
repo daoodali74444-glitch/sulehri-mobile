@@ -369,14 +369,20 @@ function renderFilters() {
   // Per-tab filters: RAM/Storage/PTA/Network sirf Phones tab mein dikhte hain.
   const showTech = state.filters.main.size === 0 || state.filters.main.has('Phones');
   document.querySelectorAll('[data-group="tech"]').forEach(el => { el.hidden = !showTech; });
+  // Category page par Category wala filter group chhupa do — page hi us category ka hai.
+  if (SM_PAGE.type === 'cat') {
+    const mg = $('filterMainCats');
+    if (mg && mg.closest('.filter-group')) mg.closest('.filter-group').hidden = true;
+  }
 }
 function clearFilters() {
   const f = state.filters;
   Object.keys(FIELD_OF).forEach(k => f[k].clear());
+  if (SM_PAGE.type === 'cat') f.main.add(SM_PAGE.main); // page ki category lock rehti hai
   f.min = null; f.max = null;
   $('priceMin').value = ''; $('priceMax').value = '';
   document.querySelectorAll('#priceQuick .chip').forEach(c => c.classList.remove('active'));
-  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  if (SM_PAGE.type !== 'cat') document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   refreshShop();
 }
 function refreshShop() {
@@ -455,6 +461,15 @@ const NAV_TABS = {
     ]
   }
 };
+/* ===================== PAGE MODE (alag-alag pages) ====================== */
+const SM_PAGE = window.SM_PAGE || { type: 'home' };
+const TAB_FILE = { home: 'index.html', phones: 'mobile.html', accessories: 'accessories.html', parts: 'parts.html', repair: 'repairing.html' };
+const MAIN_FILE = { Phones: 'mobile.html', Accessories: 'accessories.html', Parts: 'parts.html' };
+function fileOfMain(main) { return MAIN_FILE[main] || 'mobile.html'; }
+function currentTabKey() {
+  if (SM_PAGE.type === 'cat') return tabKeyOfMain(SM_PAGE.main);
+  return SM_PAGE.type; // 'home' | 'repair'
+}
 let megaOpenTab = null, megaCloseTimer = null, flyFor = '';
 function tileImage(main, sub) {
   const p = state.catalog.find(x => String(x.Main_Category) === main && String(x.Sub_Category) === sub && x.Image_1);
@@ -544,34 +559,30 @@ function tabKeyOfMain(mainCat) {
 }
 function goTab(tabKey) {
   closeMega();
-  document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabKey));
-  if (tabKey === 'home') { showView('home'); return; }
-  if (tabKey === 'repair') { showView('repair'); return; }
-  const tab = NAV_TABS[tabKey];
-  if (!tab) return;
-  Object.keys(FIELD_OF).forEach(k => state.filters[k].clear());
-  state.filters.main.add(tab.main);
-  setCatHero({ icon: tab.icon, title: tab.headTitle, crumb: 'Home / ' + tab.headTitle });
-  showView('shop');
-  refreshShop();
+  if (tabKey === currentTabKey()) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  location.href = TAB_FILE[tabKey] || 'index.html';
 }
 function megaGo(mainCat, pairs) {
   closeMega();
-  Object.keys(FIELD_OF).forEach(k => state.filters[k].clear());
-  state.filters.main.add(mainCat);
-  (pairs || []).forEach(pr => state.filters[pr[0]].add(pr[1]));
-  const tk = tabKeyOfMain(mainCat);
-  const tab = tk ? NAV_TABS[tk] : null;
-  document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tk));
-  const subPair = (pairs || []).filter(pr => pr[0] === 'sub')[0];
-  if (tab && subPair) {
-    const tile = tab.tiles.filter(t => t.sub === subPair[1])[0] || {};
-    setCatHero({ icon: tile.icon || tab.icon, img: tileImage(mainCat, subPair[1]), title: subPair[1], crumb: 'Home / ' + tab.headTitle + ' / ' + subPair[1] });
-  } else if (tab) {
-    setCatHero({ icon: tab.icon, title: tab.headTitle, crumb: 'Home / ' + tab.headTitle });
+  if (SM_PAGE.type === 'cat' && SM_PAGE.main === mainCat) {
+    Object.keys(FIELD_OF).forEach(k => state.filters[k].clear());
+    state.filters.main.add(mainCat);
+    (pairs || []).forEach(pr => state.filters[pr[0]].add(pr[1]));
+    const tk = tabKeyOfMain(mainCat);
+    const tab = tk ? NAV_TABS[tk] : null;
+    const subPair = (pairs || []).filter(pr => pr[0] === 'sub')[0];
+    if (tab && subPair) {
+      const tile = tab.tiles.filter(t => t.sub === subPair[1])[0] || {};
+      setCatHero({ icon: tile.icon || tab.icon, img: tileImage(mainCat, subPair[1]), title: subPair[1], crumb: 'Home / ' + tab.headTitle + ' / ' + subPair[1] });
+    } else if (tab) {
+      setCatHero({ icon: tab.icon, title: tab.headTitle, crumb: 'Home / ' + tab.headTitle });
+    }
+    showView('shop');
+    refreshShop();
+    return;
   }
-  showView('shop');
-  refreshShop();
+  const qs = (pairs || []).map(pr => pr[0] + '=' + encodeURIComponent(pr[1])).join('&');
+  location.href = fileOfMain(mainCat) + (qs ? '?' + qs : '');
 }
 
 /* ============================ 9. CART =================================== */
@@ -882,7 +893,18 @@ function openQuickView(id) {
 
 /* ============================ 14. NAV / VIEWS =========================== */
 function showView(name) {
-  if (name === 'track') name = 'repair'; // purana naam — Track Repair ab Repairing page par hai
+  const wantTrack = name === 'track';
+  if (wantTrack) name = 'repair'; // purana naam — Track Repair ab Repairing page par hai
+  // Alag-alag pages: jo view is page par nahi, us ke page par bhejo.
+  if (name === 'repair' && SM_PAGE.type !== 'repair') { location.href = 'repairing.html' + (wantTrack ? '#track' : ''); return; }
+  if (name === 'account' && SM_PAGE.type !== 'home') { location.href = 'index.html#account'; return; }
+  if (name === 'home' && SM_PAGE.type !== 'home') { location.href = 'index.html'; return; }
+  if (name === 'shop' && SM_PAGE.type !== 'cat') {
+    const mains = [...state.filters.main];
+    const f = mains.length === 1 ? fileOfMain(mains[0]) : 'mobile.html';
+    location.href = f + (state.filters.search ? '?q=' + encodeURIComponent(state.filters.search) : '');
+    return;
+  }
   state.view = name;
   $('viewHome').hidden = name !== 'home';
   $('viewShop').hidden = name !== 'shop';
@@ -896,6 +918,7 @@ function showView(name) {
   });
   if (name === 'account') renderAccount();
   window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (wantTrack) setTimeout(() => { const a = $('trackAnchor'); if (a) a.scrollIntoView({ behavior: 'smooth' }); }, 80);
 }
 function openFiltersDrawer() {
   if (window.innerWidth < 1024) { $('filterDrawer').classList.add('open'); $('filterScrim').hidden = false; }
@@ -997,8 +1020,8 @@ function bindEvents() {
   $('logoBtn').addEventListener('click', () => showView('home'));
   $('btnShopAll').addEventListener('click', () => { clearCatHero(); showView('shop'); refreshShop(); });
   $('trackBtnTop').addEventListener('click', () => {
-    showView('repair');
-    setTimeout(() => { const a = $('trackAnchor'); if (a) a.scrollIntoView({ behavior: 'smooth' }); }, 80);
+    if (SM_PAGE.type !== 'repair') { location.href = 'repairing.html#track'; return; }
+    const a = $('trackAnchor'); if (a) a.scrollIntoView({ behavior: 'smooth' });
   });
   $('repairTrackBtn').addEventListener('click', () => {
     const a = $('trackAnchor'); if (a) a.scrollIntoView({ behavior: 'smooth' });
@@ -1199,8 +1222,16 @@ function bindEvents() {
     if (nav) {
       const n = nav.dataset.nav;
       if (n === 'home') showView('home');
-      if (n === 'categories') { clearCatHero(); showView('shop'); refreshShop(); openFiltersDrawer(); }
-      if (n === 'search') { clearCatHero(); showView('shop'); $('searchInput').focus(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+      if (n === 'categories') {
+        if (SM_PAGE.type === 'cat') { showView('shop'); openFiltersDrawer(); }
+        else if (SM_PAGE.type === 'home') { const hc = $('homeCats'); if (hc) hc.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+        else location.href = 'index.html#cats';
+      }
+      if (n === 'search') {
+        if (SM_PAGE.type === 'cat') showView('shop');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        setTimeout(() => $('searchInput').focus(), 350);
+      }
       if (n === 'cart') openCart();
       if (n === 'account') showView('account');
       return;
@@ -1277,6 +1308,32 @@ async function init() {
     renderHome();
     refreshShop();
     renderCart();
+    // Page mode: har page apni jagah se shuru hota hai.
+    if (SM_PAGE.type === 'cat') {
+      const tk = tabKeyOfMain(SM_PAGE.main);
+      const tab = tk ? NAV_TABS[tk] : null;
+      state.filters.main.add(SM_PAGE.main);
+      const qp = new URLSearchParams(location.search);
+      ['sub', 'brand', 'ram', 'storage', 'pta', 'network'].forEach(k => { const v = qp.get(k); if (v) state.filters[k].add(v); });
+      if (qp.get('q')) { state.filters.search = qp.get('q'); $('searchInput').value = qp.get('q'); }
+      const subV = qp.get('sub');
+      if (tab && subV) {
+        const tile = tab.tiles.filter(t => t.sub === subV)[0] || {};
+        setCatHero({ icon: tile.icon || tab.icon, img: tileImage(SM_PAGE.main, subV), title: subV, crumb: 'Home / ' + tab.headTitle + ' / ' + subV });
+      } else if (tab) {
+        setCatHero({ icon: tab.icon, title: tab.headTitle, crumb: 'Home / ' + tab.headTitle });
+      }
+      document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tk));
+      showView('shop');
+      refreshShop();
+    } else if (SM_PAGE.type === 'repair') {
+      document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'repair'));
+      showView('repair');
+      if (location.hash === '#track') setTimeout(() => { const a = $('trackAnchor'); if (a) a.scrollIntoView({ behavior: 'smooth' }); }, 350);
+    } else {
+      if (location.hash === '#account') showView('account');
+      if (location.hash === '#cats') setTimeout(() => { const hc = $('homeCats'); if (hc) hc.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 350);
+    }
   } catch (e) {
     toast(e.message, 'error');
     $('homeGrid').innerHTML = '';
