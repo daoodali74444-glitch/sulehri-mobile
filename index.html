@@ -41,8 +41,17 @@
     </div>
   </div>
 
-  <!-- Category icon strip -->
-  <nav class="cat-strip" id="categoryStrip" aria-label="Categories"></nav>
+  <!-- Main tab nav + mega menu -->
+  <nav class="main-nav" id="mainNav" aria-label="Shop sections">
+    <div class="main-nav-inner" id="mainNavInner">
+      <button type="button" class="nav-tab" data-tab="home">🏠 Home</button>
+      <button type="button" class="nav-tab has-menu" data-tab="phones" aria-haspopup="true" aria-expanded="false">📱 Mobile Sales &amp; Purchase <span class="nav-caret">▾</span></button>
+      <button type="button" class="nav-tab has-menu" data-tab="accessories" aria-haspopup="true" aria-expanded="false">🎧 Accessories <span class="nav-caret">▾</span></button>
+      <button type="button" class="nav-tab has-menu" data-tab="parts" aria-haspopup="true" aria-expanded="false">🧩 Parts <span class="nav-caret">▾</span></button>
+      <button type="button" class="nav-tab" data-tab="repair">🛠️ Repairing</button>
+    </div>
+    <div class="mega-panel" id="megaPanel" hidden></div>
+  </nav>
 </header>
 
 <!-- Demo notice (only visible in DEMO mode) -->
@@ -100,19 +109,19 @@
           <h4>Brand</h4>
           <div id="filterBrands"></div>
         </div>
-        <div class="filter-group">
+        <div class="filter-group" data-group="tech">
           <h4>RAM</h4>
           <div id="filterRams" class="chip-row"></div>
         </div>
-        <div class="filter-group">
+        <div class="filter-group" data-group="tech">
           <h4>Storage</h4>
           <div id="filterStorages" class="chip-row"></div>
         </div>
-        <div class="filter-group">
+        <div class="filter-group" data-group="tech">
           <h4>PTA Status</h4>
           <div id="filterPtas"></div>
         </div>
-        <div class="filter-group">
+        <div class="filter-group" data-group="tech">
           <h4>Network</h4>
           <div id="filterNetworks"></div>
         </div>
@@ -156,22 +165,80 @@
     </div>
   </section>
 
-  <!-- ================= VIEW: TRACK REPAIR ================= -->
-  <section class="view narrow" id="viewTrack" hidden>
-    <h2>🛠️ Track Your Repair</h2>
-    <p class="muted">Enter your <strong>Job ID</strong> (e.g. REP-1001) and the <strong>email</strong> you gave at the shop
-      <em>or</em> your <strong>portal password</strong> from the job slip / email.</p>
-    <form id="trackForm" class="card-form">
-      <label>Job ID <input id="trJobId" required placeholder="REP-1001" autocomplete="off"></label>
-      <label>Email <input id="trEmail" type="email" placeholder="you@example.com" autocomplete="email"></label>
-      <div class="or-divider">— or —</div>
-      <label>Portal Password <input id="trPass" placeholder="e.g. SM-123456" autocomplete="off"></label>
-      <p class="form-error" id="trError" hidden></p>
-      <button class="btn btn-primary btn-block" id="trBtn" type="submit">Track my repair</button>
-    </form>
-    <div id="trResult" hidden>
-      <div class="step-tracker" id="trSteps"></div>
-      <div class="track-meta" id="trMeta"></div>
+  <!-- ================= VIEW: REPAIRING ================= -->
+  <section class="view" id="viewRepair" hidden>
+    <div class="repair-hero">
+      <h2>🛠️ Mobile Repairing Services</h2>
+      <p>Har qism ke mobile masail ka hal — quality parts, expert technicians aur warranty ke saath.
+        Masla samajh na aaye? <strong>Diagnosis bilkul FREE hai</strong> — pehle quote, phir kaam.</p>
+      <div class="repair-hero-btns">
+        <a class="btn btn-whatsapp" id="repairWaBtn" href="#" target="_blank" rel="noopener">💬 WhatsApp par repair quote lein</a>
+        <button class="btn btn-ghost" id="repairTrackBtn" type="button">🔎 Apni repair track karein</button>
+      </div>
+    </div>
+
+    <h3 class="repair-h">🔧 Our Repair Services</h3>
+    <div class="svc-grid">
+      <div class="svc-card"><span class="svc-icon">📱</span><strong>Screen / LCD Replacement</strong><p class="muted small">Tooti screen ya display — original quality units ke saath.</p></div>
+      <div class="svc-card"><span class="svc-icon">🔋</span><strong>Battery Replacement</strong><p class="muted small">Battery jaldi khatam? Nai battery warranty ke saath.</p></div>
+      <div class="svc-card"><span class="svc-icon">🔌</span><strong>Charging Port Repair</strong><p class="muted small">Charging pin / sub-board ka masla usi din hal.</p></div>
+      <div class="svc-card"><span class="svc-icon">💧</span><strong>Water Damage</strong><p class="muted small">Pani gir gaya? Fori diagnosis aur data bachane ki koshish.</p></div>
+      <div class="svc-card"><span class="svc-icon">📷</span><strong>Camera Repair</strong><p class="muted small">Front / back camera replacement aur lens repair.</p></div>
+      <div class="svc-card"><span class="svc-icon">💾</span><strong>Software / Flashing</strong><p class="muted small">Logo par atka, hang ya software update ka masla.</p></div>
+      <div class="svc-card"><span class="svc-icon">👆</span><strong>Face ID / Fingerprint</strong><p class="muted small">Biometric sensors ki repair aur calibration.</p></div>
+      <div class="svc-card"><span class="svc-icon">🔊</span><strong>Speaker / Mic</strong><p class="muted small">Awaz ka masla — speaker, mic aur earpiece repair.</p></div>
+    </div>
+
+    <h3 class="repair-h">📲 Brands We Repair</h3>
+    <div class="brand-chips">
+      <span>Apple iPhone</span><span>Samsung</span><span>Infinix</span><span>Tecno</span><span>Xiaomi / Redmi</span>
+      <span>Vivo</span><span>Oppo</span><span>Realme</span><span>OnePlus</span><span>Google Pixel</span>
+      <span>Huawei / Honor</span><span>Nokia</span><span>Itel</span><span>Sparx</span>
+    </div>
+
+    <h3 class="repair-h">🪜 Kaise Kaam Hota Hai?</h3>
+    <div class="steps-row">
+      <div class="step-card"><span class="step-num">1</span><strong>Book Your Repair</strong><p class="muted small">WhatsApp, call ya dukaan par aa kar repair book karwayein.</p></div>
+      <div class="step-card"><span class="step-num">2</span><strong>Diagnosis &amp; Quote</strong><p class="muted small">Phone check karke pehle saaf qeemat batayi jati hai — koi kaam aap ki marzi ke baghair nahi.</p></div>
+      <div class="step-card"><span class="step-num">3</span><strong>Repair &amp; Pickup</strong><p class="muted small">Zyada tar repairs usi din — warranty ke saath phone wapas lein.</p></div>
+    </div>
+
+    <div class="why-grid">
+      <div class="why-card">🎓<strong>Expert Technicians</strong><p class="muted small">iPhone aur Android ke certified specialists.</p></div>
+      <div class="why-card">💎<strong>Genuine Parts</strong><p class="muted small">Original quality parts — performance bilkul new jaisi.</p></div>
+      <div class="why-card">⚡<strong>Fast Turnaround</strong><p class="muted small">Aksar repairs 30–60 minute mein, warna usi din.</p></div>
+      <div class="why-card">🛡️<strong>Warranty on Repairs</strong><p class="muted small">Parts aur labour par warranty — be-fikr rahen.</p></div>
+    </div>
+
+    <div class="narrow" id="trackAnchor">
+      <h3 class="repair-h">🔎 Track Your Repair</h3>
+      <p class="muted">Enter your <strong>Job ID</strong> (e.g. REP-1001) and the <strong>email / phone number</strong> you gave at the shop
+        <em>or</em> your <strong>portal password</strong> from the job slip / email.</p>
+      <form id="trackForm" class="card-form">
+        <label>Job ID <input id="trJobId" required placeholder="REP-1001" autocomplete="off"></label>
+        <label>Email / Phone Number <input id="trEmail" type="text" placeholder="you@example.com ya 03xx-xxxxxxx" autocomplete="username"></label>
+        <div class="or-divider">— or —</div>
+        <label>Portal Password <input id="trPass" placeholder="e.g. SM-123456" autocomplete="off"></label>
+        <p class="form-error" id="trError" hidden></p>
+        <button class="btn btn-primary btn-block" id="trBtn" type="submit">Track my repair</button>
+        <p class="small muted" style="margin:.7rem 0 0">
+          <a href="#" id="trForgotLink">🔑 Portal password bhool gaye? Recover karein</a>
+        </p>
+      </form>
+      <form id="recoverForm" class="card-form" hidden style="margin-top:1rem">
+        <h3 style="margin-top:0">🔑 Forgot Portal Password</h3>
+        <p class="muted small">Apna <strong>Job ID</strong> aur wahi <strong>email ya phone number</strong> likhein jo dukaan par diya tha —
+          aap ka portal password aap ki <strong>email par bhej</strong> diya jayega.</p>
+        <label>Job ID <input id="rcJobId" placeholder="REP-1001" autocomplete="off"></label>
+        <label>Email / Phone Number <input id="rcId" type="text" placeholder="you@example.com ya 03xx-xxxxxxx" autocomplete="username"></label>
+        <p class="form-error" id="rcError" hidden></p>
+        <p class="success-text" id="rcOk" hidden></p>
+        <button class="btn btn-primary btn-block" id="rcBtn" type="submit">📧 Password email par bhejein</button>
+      </form>
+      <div id="trResult" hidden>
+        <div class="step-tracker" id="trSteps"></div>
+        <div class="track-meta" id="trMeta"></div>
+      </div>
     </div>
   </section>
 

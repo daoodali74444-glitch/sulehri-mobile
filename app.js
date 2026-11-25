@@ -21,8 +21,10 @@
                           -> {order, items, tier}
      getOrders         -> {orders[]} (customers: own only, cost fields removed)
      getInvoiceData    -> payload {type:'order'|'repair', id} -> {type, shop, invoice}
-     trackRepair       -> payload {Job_ID, email} OR {Job_ID, portalPass}
+     trackRepair       -> payload {Job_ID, email|phone} OR {Job_ID, portalPass}
                           -> {repair:{...sanitised fields only}}
+     recoverRepairPass -> payload {Job_ID, email|phone}
+                          -> {sent, message} (portal password emailed to customer)
      logout            -> {loggedOut:true}
    ========================================================================== */
 'use strict';
@@ -364,6 +366,9 @@ function renderFilters() {
       money(state.filters.min || 0) + ' – ' + (state.filters.max != null ? money(state.filters.max) : '∞') + ' ✕</button>');
   }
   $('activeFilterChips').innerHTML = chips.join('');
+  // Per-tab filters: RAM/Storage/PTA/Network sirf Phones tab mein dikhte hain.
+  const showTech = state.filters.main.size === 0 || state.filters.main.has('Phones');
+  document.querySelectorAll('[data-group="tech"]').forEach(el => { el.hidden = !showTech; });
 }
 function clearFilters() {
   const f = state.filters;
@@ -371,7 +376,7 @@ function clearFilters() {
   f.min = null; f.max = null;
   $('priceMin').value = ''; $('priceMax').value = '';
   document.querySelectorAll('#priceQuick .chip').forEach(c => c.classList.remove('active'));
-  document.querySelectorAll('.cat-item').forEach(c => c.classList.toggle('active', c.dataset.cat === 'all'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   refreshShop();
 }
 function refreshShop() {
@@ -423,29 +428,94 @@ function renderHome() {
   }).join('');
   $('homeGrid').innerHTML = state.catalog.slice(0, 8).map(productCard).join('');
 }
-const STRIP_ITEMS = [
-  { key: 'all', label: 'All', icon: '🏠' },
-  { key: 'main:Phones', label: 'Mobiles', icon: '📱' },
-  { key: 'sub:Units', label: 'LCD Units', icon: '🖥️' },
-  { key: 'sub:OCA Glass', label: 'OCA Glass', icon: '🔷' },
-  { key: 'sub:Glass Protectors', label: 'Glass Protectors', icon: '🛡️' },
-  { key: 'sub:Chargers', label: 'Chargers', icon: '🔌' },
-  { key: 'sub:Handsfree', label: 'Handsfree', icon: '🎧' },
-  { key: 'sub:Back Covers', label: 'Back Covers', icon: '📲' },
-  { key: 'sub:Data Cables', label: 'Data Cables', icon: '🔗' },
-  { key: 'sub:Repair Services', label: 'Repair Services', icon: '🛠️' }
-];
-function renderStrip() {
-  $('categoryStrip').innerHTML = STRIP_ITEMS.map(it =>
-    '<button type="button" class="cat-item' + (it.key === 'all' ? ' active' : '') + '" data-cat="' + esc(it.key) + '">' +
-    '<span class="cat-icon">' + it.icon + '</span>' + esc(it.label) + '</button>').join('');
+/* ===================== MAIN NAV + MEGA MENU ============================ */
+const NAV_TABS = {
+  phones: {
+    main: 'Phones',
+    columns: [
+      { title: '📂 Categories', type: 'sub', values: ['Mobile Phones'] },
+      { title: '🏷️ Shop by Brand', type: 'brand', values: null }, // null = brands present in catalog
+      { title: '🧠 RAM', type: 'ram', values: ['4GB', '6GB', '8GB', '12GB', '16GB'] },
+      { title: '💾 Storage', type: 'storage', values: ['64GB', '128GB', '256GB', '512GB', '1TB'] },
+      { title: '📶 PTA Status', type: 'pta', values: ['PTA Approved', 'Non-PTA', 'CPID'] }
+    ]
+  },
+  accessories: {
+    main: 'Accessories',
+    columns: [
+      { title: '📂 Categories', type: 'sub', values: ['Chargers', 'Handsfree', 'Back Covers', 'Glass Protectors', 'Data Cables'] },
+      { title: '🏷️ Shop by Brand', type: 'brand', values: null }
+    ]
+  },
+  parts: {
+    main: 'Parts',
+    columns: [
+      { title: '📂 Categories', type: 'sub', values: ['Units', 'Sub-boards', 'Strips', 'OCA Glass'] },
+      { title: '🏷️ Shop by Brand', type: 'brand', values: null }
+    ]
+  }
+};
+let megaOpenTab = null, megaCloseTimer = null;
+function megaValues(tab, col) {
+  const inMain = state.catalog.filter(p => String(p.Main_Category) === tab.main);
+  let vals;
+  if (col.type === 'brand') {
+    vals = Array.from(new Set(inMain.map(p => String(p.Brand || '')).filter(Boolean))).sort();
+  } else {
+    const field = FIELD_OF[col.type];
+    vals = (col.values || []).filter(v => inMain.some(p => String(p[field] || '') === v));
+  }
+  return vals.map(v => ({ value: v, count: inMain.filter(p => String(p[FIELD_OF[col.type]] || '') === v).length }));
 }
-function selectStrip(key) {
-  if (key === 'sub:Repair Services') { showView('track'); return; } // strip = mobile's Track Repair entry
-  document.querySelectorAll('.cat-item').forEach(c => c.classList.toggle('active', c.dataset.cat === key));
-  state.filters.main.clear(); state.filters.sub.clear();
-  if (key.indexOf('main:') === 0) state.filters.main.add(key.slice(5));
-  if (key.indexOf('sub:') === 0) state.filters.sub.add(key.slice(4));
+function buildMega(tabKey) {
+  const tab = NAV_TABS[tabKey];
+  if (!tab) return '';
+  const cols = tab.columns.map(col => {
+    const items = megaValues(tab, col);
+    if (!items.length) return '';
+    return '<div class="mega-col"><h4>' + esc(col.title) + '</h4>' +
+      items.map(it => '<button type="button" class="mega-link" data-mega-main="' + esc(tab.main) +
+        '" data-mega-key="' + col.type + '" data-mega-value="' + esc(it.value) + '">' + esc(it.value) +
+        ' <span class="count">(' + it.count + ')</span></button>').join('') + '</div>';
+  }).join('');
+  return '<div class="mega-head"><strong>' + esc(tab.main === 'Phones' ? 'Mobile Sales & Purchase' : tab.main) +
+    '</strong><button type="button" class="mega-link mega-all" data-mega-main="' + esc(tab.main) + '">View all →</button></div>' +
+    '<div class="mega-cols">' + cols + '</div>';
+}
+function openMega(tabKey) {
+  clearTimeout(megaCloseTimer);
+  const panel = $('megaPanel');
+  panel.innerHTML = buildMega(tabKey);
+  panel.hidden = false;
+  megaOpenTab = tabKey;
+  document.querySelectorAll('.nav-tab.has-menu').forEach(t =>
+    t.setAttribute('aria-expanded', t.dataset.tab === tabKey ? 'true' : 'false'));
+}
+function closeMega() {
+  $('megaPanel').hidden = true;
+  megaOpenTab = null;
+  document.querySelectorAll('.nav-tab.has-menu').forEach(t => t.setAttribute('aria-expanded', 'false'));
+}
+function scheduleCloseMega() { clearTimeout(megaCloseTimer); megaCloseTimer = setTimeout(closeMega, 250); }
+function goTab(tabKey) {
+  closeMega();
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabKey));
+  if (tabKey === 'home') { showView('home'); return; }
+  if (tabKey === 'repair') { showView('repair'); return; }
+  const tab = NAV_TABS[tabKey];
+  if (!tab) return;
+  Object.keys(FIELD_OF).forEach(k => state.filters[k].clear());
+  state.filters.main.add(tab.main);
+  showView('shop');
+  refreshShop();
+}
+function megaGo(mainCat, key, value) {
+  closeMega();
+  Object.keys(FIELD_OF).forEach(k => state.filters[k].clear());
+  state.filters.main.add(mainCat);
+  if (key && value) state.filters[key].add(value);
+  document.querySelectorAll('.nav-tab').forEach(t =>
+    t.classList.toggle('active', NAV_TABS[t.dataset.tab] && NAV_TABS[t.dataset.tab].main === mainCat));
   showView('shop');
   refreshShop();
 }
@@ -660,15 +730,15 @@ function repairStages() {
 async function trackRepairSubmit(ev) {
   ev.preventDefault();
   const jobId = $('trJobId').value.trim();
-  const email = $('trEmail').value.trim();
+  const ident = $('trEmail').value.trim();
   const pass = $('trPass').value.trim();
   $('trError').hidden = true;
-  if (!email && !pass) {
-    $('trError').textContent = 'Please enter your email OR your portal password.';
+  if (!ident && !pass) {
+    $('trError').textContent = 'Please enter your email / phone number OR your portal password.';
     $('trError').hidden = false; return;
   }
   const payload = { Job_ID: jobId };
-  if (email) payload.email = email;
+  if (ident) { if (ident.indexOf('@') > -1) payload.email = ident; else payload.phone = ident; }
   if (pass) payload.portalPass = pass;
   $('trBtn').disabled = true;
   try {
@@ -679,6 +749,27 @@ async function trackRepairSubmit(ev) {
     $('trError').hidden = false;
     $('trResult').hidden = true;
   } finally { $('trBtn').disabled = false; }
+}
+async function recoverSubmit(ev) {
+  ev.preventDefault();
+  const jobId = $('rcJobId').value.trim();
+  const ident = $('rcId').value.trim();
+  $('rcError').hidden = true; $('rcOk').hidden = true;
+  if (!jobId || !ident) {
+    $('rcError').textContent = 'Job ID aur email / phone number dono likhein.';
+    $('rcError').hidden = false; return;
+  }
+  const payload = { Job_ID: jobId };
+  if (ident.indexOf('@') > -1) payload.email = ident; else payload.phone = ident;
+  $('rcBtn').disabled = true;
+  try {
+    const data = await api('recoverRepairPass', payload);
+    $('rcOk').textContent = '✅ ' + (data.message || 'Password bhej diya gaya hai. Email check karein.');
+    $('rcOk').hidden = false;
+  } catch (e) {
+    $('rcError').textContent = e.message;
+    $('rcError').hidden = false;
+  } finally { $('rcBtn').disabled = false; }
 }
 function renderRepair(r) {
   if (!r) return;
@@ -737,17 +828,17 @@ function openQuickView(id) {
 
 /* ============================ 14. NAV / VIEWS =========================== */
 function showView(name) {
+  if (name === 'track') name = 'repair'; // purana naam — Track Repair ab Repairing page par hai
   state.view = name;
   $('viewHome').hidden = name !== 'home';
   $('viewShop').hidden = name !== 'shop';
-  $('viewTrack').hidden = name !== 'track';
+  $('viewRepair').hidden = name !== 'repair';
   $('viewAccount').hidden = name !== 'account';
   document.querySelectorAll('.nav-item').forEach(b => {
     b.classList.toggle('active',
       (name === 'home' && b.dataset.nav === 'home') ||
       (name === 'shop' && (b.dataset.nav === 'categories')) ||
-      (name === 'account' && b.dataset.nav === 'account') ||
-      (name === 'track' && b.dataset.nav === 'account' ? false : false));
+      (name === 'account' && b.dataset.nav === 'account'));
   });
   if (name === 'account') renderAccount();
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -775,7 +866,38 @@ function renderSuggestions() {
 function bindEvents() {
   $('logoBtn').addEventListener('click', () => showView('home'));
   $('btnShopAll').addEventListener('click', () => { showView('shop'); refreshShop(); });
-  $('trackBtnTop').addEventListener('click', () => showView('track'));
+  $('trackBtnTop').addEventListener('click', () => {
+    showView('repair');
+    setTimeout(() => { const a = $('trackAnchor'); if (a) a.scrollIntoView({ behavior: 'smooth' }); }, 80);
+  });
+  $('repairTrackBtn').addEventListener('click', () => {
+    const a = $('trackAnchor'); if (a) a.scrollIntoView({ behavior: 'smooth' });
+  });
+
+  // Main nav tabs + mega menu: desktop par hover, har jagah click/tap.
+  const navEl = $('mainNav');
+  document.querySelectorAll('.nav-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const key = tab.dataset.tab;
+      if (NAV_TABS[key]) {
+        if (megaOpenTab === key) { closeMega(); goTab(key); }
+        else openMega(key);
+      } else goTab(key);
+    });
+    if (window.matchMedia('(hover: hover) and (min-width: 900px)').matches) {
+      tab.addEventListener('mouseenter', () => { if (NAV_TABS[tab.dataset.tab]) openMega(tab.dataset.tab); });
+    }
+  });
+  if (window.matchMedia('(hover: hover) and (min-width: 900px)').matches) {
+    navEl.addEventListener('mouseleave', scheduleCloseMega);
+    $('megaPanel').addEventListener('mouseenter', () => clearTimeout(megaCloseTimer));
+  }
+  $('megaPanel').addEventListener('click', e => {
+    const link = e.target.closest('[data-mega-main]');
+    if (link) megaGo(link.dataset.megaMain, link.dataset.megaKey || null, link.dataset.megaValue || null);
+  });
+  document.addEventListener('click', e => { if (!e.target.closest('#mainNav')) closeMega(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMega(); });
   $('cartBtn').addEventListener('click', openCart);
   $('closeCartBtn').addEventListener('click', closeCart);
   $('cartScrim').addEventListener('click', closeCart);
@@ -800,6 +922,13 @@ function bindEvents() {
   $('emptyClearBtn').addEventListener('click', clearFilters);
   $('sortSelect').addEventListener('change', e => { state.filters.sort = e.target.value; refreshShop(); });
   $('trackForm').addEventListener('submit', trackRepairSubmit);
+  $('trForgotLink').addEventListener('click', ev => {
+    ev.preventDefault();
+    const f = $('recoverForm');
+    f.hidden = !f.hidden;
+    if (!f.hidden) $('rcJobId').value = $('trJobId').value.trim();
+  });
+  $('recoverForm').addEventListener('submit', recoverSubmit);
   $('logoutBtn').addEventListener('click', async () => {
     try { await api('logout', {}); } catch (e) {}
     clearSession();
@@ -850,7 +979,7 @@ function bindEvents() {
     const view = e.target.closest('[data-view]');
     if (view) { $('searchSuggestions').hidden = true; openQuickView(view.dataset.view); return; }
     const cat = e.target.closest('[data-cat]');
-    if (cat) { selectStrip(cat.dataset.cat); return; }
+    if (cat) { return; } // purana category strip hata diya gaya — nav tabs istemal hote hain
     const chip = e.target.closest('[data-chip]');
     if (chip) {
       const set = state.filters[chip.dataset.chip];
@@ -943,7 +1072,8 @@ async function init() {
   $('demoHint').hidden = !DEMO_MODE;
   $('waLink').href = 'https://wa.me/' + CONFIG.WHATSAPP_NUMBER + '?text=' +
     encodeURIComponent('Assalam-o-Alaikum! I have a question about a product at Sulehri Mobile.');
-  renderStrip();
+  $('repairWaBtn').href = 'https://wa.me/' + CONFIG.WHATSAPP_NUMBER + '?text=' +
+    encodeURIComponent('Assalam-o-Alaikum! Mujhe apna mobile repair karwana hai. Model aur masla ye hai: ');
   updateAuthUI(); renderTargetBar(); renderCart();
   $('homeGrid').innerHTML = skeletonCards(4);
   $('shopGrid').innerHTML = skeletonCards(4);
