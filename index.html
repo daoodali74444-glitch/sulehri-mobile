@@ -12,6 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
+<script>try { document.documentElement.dataset.theme = localStorage.getItem('sm_theme') || 'ocean'; } catch (e) { document.documentElement.dataset.theme = 'ocean'; }</script>
 </head>
 <body>
 
@@ -31,6 +32,17 @@
     </div>
 
     <div class="header-actions">
+      <div class="theme-wrap">
+        <button class="icon-btn" id="themeBtn" type="button" aria-label="Change theme">🎨</button>
+        <div class="theme-pop" id="themePop" hidden>
+          <strong>🎨 Apni Theme Chunein</strong>
+          <button type="button" class="theme-opt" data-theme-set="ocean"><span class="theme-dot" style="background:linear-gradient(135deg,#0B2A5B,#2563EB)"></span>Ocean Blue</button>
+          <button type="button" class="theme-opt" data-theme-set="emerald"><span class="theme-dot" style="background:linear-gradient(135deg,#064E3B,#059669)"></span>Emerald Green</button>
+          <button type="button" class="theme-opt" data-theme-set="royal"><span class="theme-dot" style="background:linear-gradient(135deg,#3B0764,#7C3AED)"></span>Royal Purple</button>
+          <button type="button" class="theme-opt" data-theme-set="sunset"><span class="theme-dot" style="background:linear-gradient(135deg,#7C2D12,#EA580C)"></span>Sunset Orange</button>
+          <button type="button" class="theme-opt" data-theme-set="rose"><span class="theme-dot" style="background:linear-gradient(135deg,#500724,#DB2777)"></span>Rose Pink</button>
+        </div>
+      </div>
       <button class="btn btn-ghost header-track" id="trackBtnTop" type="button">🛠️ Track Repair</button>
       <button class="icon-btn" id="cartBtn" type="button" aria-label="Open cart">
         🛒 <span class="cart-badge" id="cartBadge" hidden>0</span>
@@ -44,11 +56,11 @@
   <!-- Main tab nav + mega menu -->
   <nav class="main-nav" id="mainNav" aria-label="Shop sections">
     <div class="main-nav-inner" id="mainNavInner">
-      <button type="button" class="nav-tab" data-tab="home">🏠 Home</button>
-      <button type="button" class="nav-tab has-menu" data-tab="phones" aria-haspopup="true" aria-expanded="false">📱 Mobile <span class="nav-caret">▾</span></button>
-      <button type="button" class="nav-tab has-menu" data-tab="accessories" aria-haspopup="true" aria-expanded="false">🎧 Accessories <span class="nav-caret">▾</span></button>
-      <button type="button" class="nav-tab has-menu" data-tab="parts" aria-haspopup="true" aria-expanded="false">🧩 Parts <span class="nav-caret">▾</span></button>
-      <button type="button" class="nav-tab" data-tab="repair">🛠️ Repairing</button>
+      <button type="button" class="nav-tab" data-tab="home">Home</button>
+      <button type="button" class="nav-tab has-menu" data-tab="phones" aria-haspopup="true" aria-expanded="false"><img class="tab-thumb" id="thumbMobile" alt="" hidden>Mobile <span class="nav-caret">▾</span></button>
+      <button type="button" class="nav-tab has-menu" data-tab="accessories" aria-haspopup="true" aria-expanded="false"><img class="tab-thumb" id="thumbAccessories" alt="" hidden>Accessories <span class="nav-caret">▾</span></button>
+      <button type="button" class="nav-tab has-menu" data-tab="parts" aria-haspopup="true" aria-expanded="false"><img class="tab-thumb" id="thumbParts" alt="" hidden>Parts <span class="nav-caret">▾</span></button>
+      <button type="button" class="nav-tab" data-tab="repair"><img class="tab-thumb" src="images/repair-hero.jpg" alt="">Repairing</button>
     </div>
     <div class="mega-panel" id="megaPanel" hidden></div>
   </nav>
@@ -76,6 +88,18 @@
 
   <!-- ================= VIEW: HOME ================= -->
   <section class="view" id="viewHome">
+    <div class="hero-slider" id="heroSlider" hidden>
+      <div class="hero-track" id="heroTrack"></div>
+      <button type="button" class="hero-arrow hero-prev" id="heroPrev" aria-label="Previous">‹</button>
+      <button type="button" class="hero-arrow hero-next" id="heroNext" aria-label="Next">›</button>
+      <div class="hero-dots" id="heroDots"></div>
+    </div>
+
+    <div class="section-head reveal">
+      <h2>🛍️ Shop by Category</h2>
+    </div>
+    <div class="home-cats reveal" id="homeCats"></div>
+
     <div id="showcaseWrap"></div>
 
     <div class="section-head">
@@ -175,44 +199,105 @@
 
   <!-- ================= VIEW: REPAIRING ================= -->
   <section class="view" id="viewRepair" hidden>
-    <div class="repair-hero">
-      <h2>🛠️ Mobile Repairing Services</h2>
-      <p>Har qism ke mobile masail ka hal — quality parts, expert technicians aur warranty ke saath.
-        Masla samajh na aaye? <strong>Diagnosis bilkul FREE hai</strong> — pehle quote, phir kaam.</p>
-      <div class="repair-hero-btns">
-        <a class="btn btn-whatsapp" id="repairWaBtn" href="#" target="_blank" rel="noopener">💬 WhatsApp par repair quote lein</a>
-        <button class="btn btn-ghost" id="repairTrackBtn" type="button">🔎 Apni repair track karein</button>
+    <div class="repair-hero reveal">
+      <img class="repair-hero-bg" src="images/repair-hero.jpg" alt="Sulehri Mobile repair lab">
+      <div class="repair-hero-shade"></div>
+      <div class="repair-hero-content">
+        <span class="hero-kicker">🔬 SULEHRI MOBILE REPAIR LAB</span>
+        <h2>Mobile Repairing — Chip Level Experts</h2>
+        <p>Screen se lekar <strong>CPU drilling</strong> tak — woh kaam jo dusri dukanein wapas kar deti hain, hum yahan karte hain.
+          Diagnosis <strong>bilkul FREE</strong> — pehle quote, phir kaam, warranty ke saath.</p>
+        <div class="repair-hero-btns">
+          <a class="btn btn-whatsapp" id="repairWaBtn" href="#" target="_blank" rel="noopener">💬 WhatsApp par repair quote lein</a>
+          <button class="btn btn-ghost" id="repairTrackBtn" type="button">🔎 Apni repair track karein</button>
+        </div>
       </div>
     </div>
 
-    <h3 class="repair-h">🔧 Our Repair Services</h3>
-    <div class="svc-grid">
-      <div class="svc-card"><span class="svc-icon">📱</span><strong>Screen / LCD Replacement</strong><p class="muted small">Tooti screen ya display — original quality units ke saath.</p></div>
-      <div class="svc-card"><span class="svc-icon">🔋</span><strong>Battery Replacement</strong><p class="muted small">Battery jaldi khatam? Nai battery warranty ke saath.</p></div>
-      <div class="svc-card"><span class="svc-icon">🔌</span><strong>Charging Port Repair</strong><p class="muted small">Charging pin / sub-board ka masla usi din hal.</p></div>
-      <div class="svc-card"><span class="svc-icon">💧</span><strong>Water Damage</strong><p class="muted small">Pani gir gaya? Fori diagnosis aur data bachane ki koshish.</p></div>
-      <div class="svc-card"><span class="svc-icon">📷</span><strong>Camera Repair</strong><p class="muted small">Front / back camera replacement aur lens repair.</p></div>
-      <div class="svc-card"><span class="svc-icon">💾</span><strong>Software / Flashing</strong><p class="muted small">Logo par atka, hang ya software update ka masla.</p></div>
-      <div class="svc-card"><span class="svc-icon">👆</span><strong>Face ID / Fingerprint</strong><p class="muted small">Biometric sensors ki repair aur calibration.</p></div>
-      <div class="svc-card"><span class="svc-icon">🔊</span><strong>Speaker / Mic</strong><p class="muted small">Awaz ka masla — speaker, mic aur earpiece repair.</p></div>
+    <div class="featured-service reveal">
+      <div class="featured-media">
+        <img src="images/repair-cpu.jpg" alt="CPU drilling on a phone motherboard">
+        <span class="featured-ribbon">⭐ SPECIALIST SERVICE</span>
+      </div>
+      <div class="featured-body">
+        <h3>🔥 CPU Drilling &amp; Advanced Board Repair</h3>
+        <p>Ye humari sab se khaas service hai — Pakistan mein bohat kam shops ye kaam karti hain!
+          Bilkul <strong>dead phone</strong>, pani mein gira phone, ya woh phone jise sab ne <em>"na-umeed"</em> keh diya ho —
+          microscope ke neeche CPU drilling karke board ki andar ki layers tak pohanchte hain,
+          taake aap ka <strong>data bhi bache aur phone bhi chal pare</strong>. Samsung, iPhone, Xiaomi — har model.</p>
+        <div class="svc-chips">
+          <span>Dead Phone Recovery</span><span>CPU Reballing</span><span>UFS / EMMC Drilling Access</span>
+          <span>iPhone CPU Work</span><span>Data Recovery</span><span>Board Short Fix</span>
+        </div>
+        <a class="btn btn-whatsapp" href="#" target="_blank" rel="noopener" data-wa-service="CPU Drilling / dead phone repair">💬 CPU Drilling ke liye quote lein</a>
+      </div>
     </div>
 
-    <h3 class="repair-h">📲 Brands We Repair</h3>
-    <div class="brand-chips">
+    <h3 class="repair-h reveal">🔧 Our Repair Services</h3>
+    <div class="svc2-grid">
+      <article class="svc2-card reveal">
+        <img src="images/repair-hardware.jpg" alt="Mobile hardware repair">
+        <div class="svc2-body">
+          <h4>🛠️ Mobile Hardware</h4>
+          <p>Screen se motherboard tak — har hardware masla genuine quality parts aur warranty ke saath, zyada tar usi din.</p>
+          <div class="svc-chips"><span>Screen / LCD</span><span>Battery</span><span>Charging Port</span><span>Camera</span><span>Speaker / Mic</span><span>Face ID / Fingerprint</span></div>
+          <a class="btn btn-whatsapp btn-sm" href="#" target="_blank" rel="noopener" data-wa-service="Mobile Hardware repair">💬 Quote lein</a>
+        </div>
+      </article>
+      <article class="svc2-card reveal">
+        <img src="images/repair-software.jpg" alt="Mobile software flashing">
+        <div class="svc2-body">
+          <h4>💾 Mobile Software</h4>
+          <p>Phone logo par atka hai, hang hota hai ya software kharab ho gaya? Data ka khayal rakhte hue har software masla hal.</p>
+          <div class="svc-chips"><span>Flashing / Firmware</span><span>Logo Hang Fix</span><span>Software Update</span><span>Virus Removal</span><span>Data Backup</span><span>FRP (sirf malik ke liye)</span></div>
+          <a class="btn btn-whatsapp btn-sm" href="#" target="_blank" rel="noopener" data-wa-service="Mobile Software repair">💬 Quote lein</a>
+        </div>
+      </article>
+      <article class="svc2-card reveal">
+        <img src="images/repair-jtag.jpg" alt="JTAG boot repair">
+        <div class="svc2-body">
+          <h4>🔌 JTAG Boot Repair</h4>
+          <p>Bilkul dead phone jo computer se bhi connect na ho — JTAG se seedha chip se connection karke boot wapas layein.</p>
+          <div class="svc-chips"><span>Dead Boot Repair</span><span>ISP Pinout Work</span><span>No Power / No Port</span><span>Bootloader Fix</span><span>Samsung / Xiaomi Dead Fix</span></div>
+          <a class="btn btn-whatsapp btn-sm" href="#" target="_blank" rel="noopener" data-wa-service="JTAG boot repair">💬 Quote lein</a>
+        </div>
+      </article>
+      <article class="svc2-card reveal">
+        <img src="images/repair-emmc.jpg" alt="EMMC chip programming">
+        <div class="svc2-body">
+          <h4>💿 EMMC / UFS Chip Work</h4>
+          <p>Memory chip ki programming, health check aur replacement — kharab chip se data nikalna ho ya phone zinda karna ho.</p>
+          <div class="svc-chips"><span>EMMC Programming</span><span>UFS Programming</span><span>Chip Replacement</span><span>Health Check</span><span>Data Extraction</span></div>
+          <a class="btn btn-whatsapp btn-sm" href="#" target="_blank" rel="noopener" data-wa-service="EMMC / UFS chip work">💬 Quote lein</a>
+        </div>
+      </article>
+      <article class="svc2-card reveal">
+        <img src="images/repair-hero.jpg" alt="Dead and water damaged phone care">
+        <div class="svc2-body">
+          <h4>💧 Dead &amp; Water-Damaged Phones</h4>
+          <p>Pani gir gaya ya phone achanak band ho gaya? Fori ultrasonic safai aur chip-level diagnosis — umeed khatam samajhne se pehle hum se zaroor poochein.</p>
+          <div class="svc-chips"><span>Water Damage Care</span><span>Ultrasonic Cleaning</span><span>Dead Phone Diagnosis</span><span>Short Circuit Fix</span></div>
+          <a class="btn btn-whatsapp btn-sm" href="#" target="_blank" rel="noopener" data-wa-service="Dead / water-damaged phone repair">💬 Quote lein</a>
+        </div>
+      </article>
+    </div>
+
+    <h3 class="repair-h reveal">📲 Brands We Repair</h3>
+    <div class="brand-chips reveal">
       <span>Apple iPhone</span><span>Samsung</span><span>Infinix</span><span>Tecno</span><span>Xiaomi / Redmi</span>
       <span>Vivo</span><span>Oppo</span><span>Realme</span><span>OnePlus</span><span>Google Pixel</span>
       <span>Huawei / Honor</span><span>Nokia</span><span>Itel</span><span>Sparx</span>
     </div>
 
-    <h3 class="repair-h">🪜 Kaise Kaam Hota Hai?</h3>
-    <div class="steps-row">
+    <h3 class="repair-h reveal">🪜 Kaise Kaam Hota Hai?</h3>
+    <div class="steps-row reveal">
       <div class="step-card"><span class="step-num">1</span><strong>Book Your Repair</strong><p class="muted small">WhatsApp, call ya dukaan par aa kar repair book karwayein.</p></div>
       <div class="step-card"><span class="step-num">2</span><strong>Diagnosis &amp; Quote</strong><p class="muted small">Phone check karke pehle saaf qeemat batayi jati hai — koi kaam aap ki marzi ke baghair nahi.</p></div>
       <div class="step-card"><span class="step-num">3</span><strong>Repair &amp; Pickup</strong><p class="muted small">Zyada tar repairs usi din — warranty ke saath phone wapas lein.</p></div>
     </div>
 
-    <div class="why-grid">
-      <div class="why-card">🎓<strong>Expert Technicians</strong><p class="muted small">iPhone aur Android ke certified specialists.</p></div>
+    <div class="why-grid reveal">
+      <div class="why-card">🎓<strong>Expert Technicians</strong><p class="muted small">Chip-level repairing ke certified specialists.</p></div>
       <div class="why-card">💎<strong>Genuine Parts</strong><p class="muted small">Original quality parts — performance bilkul new jaisi.</p></div>
       <div class="why-card">⚡<strong>Fast Turnaround</strong><p class="muted small">Aksar repairs 30–60 minute mein, warna usi din.</p></div>
       <div class="why-card">🛡️<strong>Warranty on Repairs</strong><p class="muted small">Parts aur labour par warranty — be-fikr rahen.</p></div>

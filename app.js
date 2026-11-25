@@ -427,6 +427,7 @@ function renderHome() {
     '</div>';
   }).join('');
   $('homeGrid').innerHTML = state.catalog.slice(0, 8).map(productCard).join('');
+  setTabThumbs(); renderHero(); renderHomeCats();
 }
 /* ===================== MAIN NAV + MEGA MENU ============================ */
 const NAV_TABS = {
@@ -908,6 +909,82 @@ function renderSuggestions() {
   box.hidden = false;
 }
 
+/* ===================== 15B. THEMES, HERO, HOME CATS, REVEAL ============ */
+function applyTheme(name) {
+  document.documentElement.dataset.theme = name;
+  try { localStorage.setItem('sm_theme', name); } catch (e) {}
+  document.querySelectorAll('[data-theme-set]').forEach(b => b.classList.toggle('active', b.dataset.themeSet === name));
+}
+function setTabThumbs() {
+  const pick = main => {
+    const p = state.catalog.find(x => String(x.Main_Category) === main && x.Image_1);
+    return p ? String(p.Image_1) : '';
+  };
+  const set = (id, src) => { const el = $(id); if (el && src) { el.src = src; el.hidden = false; } };
+  set('thumbMobile', pick('Phones'));
+  set('thumbAccessories', pick('Accessories'));
+  set('thumbParts', pick('Parts'));
+}
+let heroIdx = 0, heroTimer = null, heroSlides = [];
+function renderHero() {
+  const slides = [];
+  state.banners.filter(b => b.Poster_Image_URL).slice(0, 4).forEach(b => {
+    slides.push({ img: String(b.Poster_Image_URL), title: b.Section_Title || 'Sulehri Mobile', badge: b.Badge_Text || '', main: String(b.Target_Category || '') });
+  });
+  slides.push({ img: 'images/repair-hero.jpg', title: 'Chip-Level Repair Lab', badge: 'CPU Drilling · JTAG · EMMC', repair: true });
+  heroSlides = slides;
+  $('heroTrack').innerHTML = slides.map(s =>
+    '<div class="hero-slide" ' + (s.repair ? 'data-hero-repair="1"' : 'data-hero-main="' + esc(s.main) + '"') + '>' +
+    '<img src="' + esc(s.img) + '" alt="">' +
+    '<div class="hero-slide-shade"></div>' +
+    '<div class="hero-slide-body">' + (s.badge ? '<span class="badge-text">' + esc(s.badge) + '</span>' : '') +
+    '<h3>' + esc(s.title) + '</h3>' +
+    '<span class="hero-cta">' + (s.repair ? 'Repairing dekhein →' : 'Shop now →') + '</span></div></div>').join('');
+  $('heroDots').innerHTML = slides.map((_, i) =>
+    '<button type="button" class="hero-dot' + (i === 0 ? ' active' : '') + '" data-hero-dot="' + i + '" aria-label="Slide ' + (i + 1) + '"></button>').join('');
+  $('heroSlider').hidden = slides.length === 0;
+  heroIdx = 0;
+  heroGo(0);
+  startHeroAuto();
+}
+function heroGo(i) {
+  if (!heroSlides.length) return;
+  heroIdx = (i + heroSlides.length) % heroSlides.length;
+  $('heroTrack').style.transform = 'translateX(-' + (heroIdx * 100) + '%)';
+  document.querySelectorAll('.hero-dot').forEach((d, j) => d.classList.toggle('active', j === heroIdx));
+}
+function startHeroAuto() {
+  clearInterval(heroTimer);
+  if (heroSlides.length > 1) {
+    heroTimer = setInterval(() => { if (state.view === 'home' && !document.hidden) heroGo(heroIdx + 1); }, 4500);
+  }
+}
+function renderHomeCats() {
+  const tiles = [];
+  Object.keys(NAV_TABS).forEach(k => {
+    const tab = NAV_TABS[k];
+    tab.tiles.forEach(t => tiles.push({ main: tab.main, sub: t.sub, icon: t.icon }));
+  });
+  $('homeCats').innerHTML = tiles.map(t => {
+    const img = tileImage(t.main, t.sub);
+    return '<button type="button" class="hc-tile" data-hc-main="' + esc(t.main) + '" data-hc-sub="' + esc(t.sub) + '">' +
+      '<span class="tile-circle">' + (img ? '<img src="' + esc(img) + '" alt="" onerror="this.remove()">' : '') +
+      '<span class="tile-emoji">' + t.icon + '</span></span>' +
+      '<span class="hc-label">' + esc(t.sub) + '</span></button>';
+  }).join('') +
+  '<button type="button" class="hc-tile" data-hc-repair="1">' +
+    '<span class="tile-circle"><img src="images/repair-hero.jpg" alt=""></span>' +
+    '<span class="hc-label">Repairing</span></button>';
+}
+function initReveal() {
+  const els = document.querySelectorAll('.reveal:not(.in)');
+  if (!('IntersectionObserver' in window)) { els.forEach(el => el.classList.add('in')); return; }
+  const io = new IntersectionObserver(es => es.forEach(en => {
+    if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); }
+  }), { threshold: 0.06 });
+  els.forEach(el => io.observe(el));
+}
+
 /* ============================ 16. EVENTS + INIT ========================= */
 function bindEvents() {
   $('logoBtn').addEventListener('click', () => showView('home'));
@@ -960,6 +1037,26 @@ function bindEvents() {
   });
   document.addEventListener('click', e => { if (!e.target.closest('#mainNav')) closeMega(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMega(); });
+
+  // Theme picker.
+  $('themeBtn').addEventListener('click', e => {
+    e.stopPropagation();
+    $('themePop').hidden = !$('themePop').hidden;
+  });
+  $('themePop').addEventListener('click', e => {
+    const b = e.target.closest('[data-theme-set]');
+    if (!b) return;
+    applyTheme(b.dataset.themeSet);
+    $('themePop').hidden = true;
+    toast('Theme change ho gayi 🎨', 'success');
+  });
+  document.addEventListener('click', e => { if (!e.target.closest('.theme-wrap')) $('themePop').hidden = true; });
+
+  // Hero slider arrows + pause on hover.
+  $('heroPrev').addEventListener('click', () => { heroGo(heroIdx - 1); startHeroAuto(); });
+  $('heroNext').addEventListener('click', () => { heroGo(heroIdx + 1); startHeroAuto(); });
+  $('heroSlider').addEventListener('mouseenter', () => clearInterval(heroTimer));
+  $('heroSlider').addEventListener('mouseleave', startHeroAuto);
   $('cartBtn').addEventListener('click', openCart);
   $('closeCartBtn').addEventListener('click', closeCart);
   $('cartScrim').addEventListener('click', closeCart);
@@ -1042,6 +1139,14 @@ function bindEvents() {
     if (view) { $('searchSuggestions').hidden = true; openQuickView(view.dataset.view); return; }
     const cat = e.target.closest('[data-cat]');
     if (cat) { return; } // purana category strip hata diya gaya — nav tabs istemal hote hain
+    const hc = e.target.closest('[data-hc-main]');
+    if (hc) { megaGo(hc.dataset.hcMain, [['sub', hc.dataset.hcSub]]); return; }
+    if (e.target.closest('[data-hc-repair]')) { showView('repair'); return; }
+    const hd = e.target.closest('[data-hero-dot]');
+    if (hd) { heroGo(Number(hd.dataset.heroDot)); startHeroAuto(); return; }
+    if (e.target.closest('[data-hero-repair]')) { showView('repair'); return; }
+    const hm = e.target.closest('[data-hero-main]');
+    if (hm && hm.dataset.heroMain) { megaGo(hm.dataset.heroMain, []); return; }
     const chip = e.target.closest('[data-chip]');
     if (chip) {
       const set = state.filters[chip.dataset.chip];
@@ -1136,6 +1241,11 @@ async function init() {
     encodeURIComponent('Assalam-o-Alaikum! I have a question about a product at Sulehri Mobile.');
   $('repairWaBtn').href = 'https://wa.me/' + CONFIG.WHATSAPP_NUMBER + '?text=' +
     encodeURIComponent('Assalam-o-Alaikum! Mujhe apna mobile repair karwana hai. Model aur masla ye hai: ');
+  document.querySelectorAll('[data-wa-service]').forEach(a => {
+    a.href = 'https://wa.me/' + CONFIG.WHATSAPP_NUMBER + '?text=' +
+      encodeURIComponent('Assalam-o-Alaikum! Mujhe ' + a.dataset.waService + ' ki service chahiye. Mera phone/model: ');
+  });
+  applyTheme(document.documentElement.dataset.theme || 'ocean');
   updateAuthUI(); renderTargetBar(); renderCart();
   $('homeGrid').innerHTML = skeletonCards(4);
   $('shopGrid').innerHTML = skeletonCards(4);
@@ -1158,6 +1268,7 @@ async function init() {
     $('homeGrid').innerHTML = '';
     $('shopGrid').innerHTML = '';
   }
+  initReveal();
   // PWA: register the service worker only on http(s) (not file:// previews).
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
