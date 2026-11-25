@@ -15,6 +15,7 @@
   --sidebar-w:248px;
 }
 *{box-sizing:border-box}
+[hidden]{display:none !important}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;font-family:var(--font-body);color:var(--ink);background:var(--slate-bg);overflow-x:hidden}
 h1,h2,h3,h4{font-family:var(--font-head);color:var(--navy);margin:.4rem 0}
