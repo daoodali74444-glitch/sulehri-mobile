@@ -466,53 +466,60 @@ function tileCount(main, sub) {
 function buildMega(tabKey) {
   const tab = NAV_TABS[tabKey];
   if (!tab) return '';
-  const tiles = tab.tiles.map((t, i) => {
-    const img = tileImage(tab.main, t.sub);
+  const kids = tab.flyout === 'pta';
+  const rows = tab.tiles.map(t => {
     const n = tileCount(tab.main, t.sub);
-    return '<button type="button" class="mega-tile" style="animation-delay:' + (i * 60) + 'ms" data-tile-main="' + esc(tab.main) +
-      '" data-tile-sub="' + esc(t.sub) + '">' +
-      '<span class="tile-circle">' + (img ? '<img src="' + esc(img) + '" alt="" onerror="this.remove()">' : '') +
-      '<span class="tile-emoji">' + t.icon + '</span></span>' +
-      '<span class="tile-label">' + esc(t.sub) + '</span>' +
-      '<span class="tile-count">' + n + ' product' + (n === 1 ? '' : 's') + '</span></button>';
+    return '<button type="button" class="mega-row' + (kids ? ' has-kids' : '') + '" data-row-main="' + esc(tab.main) +
+      '" data-row-sub="' + esc(t.sub) + '">' +
+      '<span class="mega-row-label">' + esc(t.sub) + '</span>' +
+      '<span class="mega-row-count">' + n + ' product' + (n === 1 ? '' : 's') + '</span>' +
+      (kids ? '<span class="mega-row-arrow">›</span>' : '') + '</button>';
   }).join('');
-  return '<div class="mega-head"><strong>' + esc(tab.headTitle) + '</strong>' +
-    '<span class="mega-sub">Hover a category — more options open beside it</span></div>' +
-    '<div class="mega-body"><div class="mega-tiles">' + tiles + '</div>' +
-    '<div class="mega-flyout" id="megaFlyout" hidden></div></div>' +
-    '<div class="mega-foot"><button type="button" class="mega-viewall" data-mega-main="' + esc(tab.main) +
-    '">View All ' + esc(tab.headTitle) + ' →</button></div>';
+  return '<div class="mega-head"><strong>' + esc(tab.headTitle) + '</strong></div>' +
+    '<div class="mega-list">' + rows + '</div>' +
+    '<div class="mega-flyout" id="megaFlyout" hidden></div>' +
+    '<button type="button" class="mega-viewall" data-mega-main="' + esc(tab.main) +
+    '">View All ' + esc(tab.headTitle) + ' →</button>';
 }
-function renderFlyout(tabKey, tile) {
+function renderFlyout(tabKey, row) {
   const tab = NAV_TABS[tabKey];
   const fly = $('megaFlyout');
   if (!tab || !fly) return;
-  const main = tab.main, sub = tile.dataset.tileSub;
+  const main = tab.main, sub = row.dataset.rowSub;
   flyFor = main + '|' + sub;
+  document.querySelectorAll('.mega-row').forEach(r => r.classList.toggle('active', r === row));
   const inSub = state.catalog.filter(p => String(p.Main_Category) === main && String(p.Sub_Category) === sub);
-  let html = '<h4>' + esc(sub) + '</h4>';
-  if (tab.flyout === 'pta') {
-    const ptas = ['PTA Approved', 'Non-PTA', 'CPID'].filter(v => inSub.some(p => String(p.PTA_Status) === v));
-    html += ptas.map(v => '<button type="button" class="fly-link" data-fly-main="' + esc(main) +
-      '" data-fly-sub="' + esc(sub) + '" data-fly-pta="' + esc(v) + '">📶 ' + esc(v) +
-      ' <span class="count">(' + inSub.filter(p => String(p.PTA_Status) === v).length + ')</span></button>').join('');
-    if (!ptas.length) html += '<p class="fly-note">Is category mein abhi products nahi hain.</p>';
+  const ptas = ['PTA Approved', 'Non-PTA', 'CPID'].filter(v => inSub.some(p => String(p.PTA_Status) === v));
+  let html = '<div class="fly-head">' + esc(sub) + '</div>';
+  if (ptas.length) {
+    html += '<div class="fly-sub">PTA Status</div>' + ptas.map(v =>
+      '<button type="button" class="fly-row" data-fly-main="' + esc(main) + '" data-fly-sub="' + esc(sub) +
+      '" data-fly-pta="' + esc(v) + '"><span>' + esc(v) + '</span><span class="mega-row-count">' +
+      inSub.filter(p => String(p.PTA_Status) === v).length + '</span></button>').join('');
   } else {
-    if (inSub.length) html += '<p class="fly-note">⭐ Popular in ' + esc(sub) + '</p>';
-    html += inSub.slice(0, 4).map(p => '<button type="button" class="fly-link" data-view="' + esc(p.Product_ID) + '">' +
-      esc(productTitle(p)) + ' <span class="count">' + money(p.Active_Price) + '</span></button>').join('');
-    if (!inSub.length) html += '<p class="fly-note">Is category mein abhi products nahi hain.</p>';
+    html += '<p class="fly-empty">Is category ke saare phones ek hi list mein hain.</p>';
   }
-  html += '<button type="button" class="fly-link fly-all" data-fly-main="' + esc(main) +
+  html += '<button type="button" class="fly-row fly-all" data-fly-main="' + esc(main) +
     '" data-fly-sub="' + esc(sub) + '">View all ' + esc(sub) + ' →</button>';
   fly.innerHTML = html;
   fly.hidden = false;
+}
+function hideFlyout() {
+  const fly = $('megaFlyout');
+  if (fly) fly.hidden = true;
+  flyFor = '';
+  document.querySelectorAll('.mega-row.active').forEach(r => r.classList.remove('active'));
 }
 function openMega(tabKey) {
   clearTimeout(megaCloseTimer);
   flyFor = '';
   const panel = $('megaPanel');
   panel.innerHTML = buildMega(tabKey);
+  const tabEl = document.querySelector('.nav-tab[data-tab="' + tabKey + '"]');
+  if (tabEl) {
+    const maxLeft = Math.max(0, $('mainNav').clientWidth - 330);
+    panel.style.left = Math.min(tabEl.offsetLeft, maxLeft) + 'px';
+  }
   panel.hidden = false;
   megaOpenTab = tabKey;
   document.querySelectorAll('.nav-tab.has-menu').forEach(t =>
@@ -1023,17 +1030,24 @@ function bindEvents() {
       megaGo(fly.dataset.flyMain, pairs);
       return;
     }
-    const tile = e.target.closest('[data-tile-main]');
-    if (tile) { megaGo(tile.dataset.tileMain, [['sub', tile.dataset.tileSub]]); return; }
+    const row = e.target.closest('[data-row-main]');
+    if (row) {
+      if (row.classList.contains('has-kids')) {
+        if (flyFor === row.dataset.rowMain + '|' + row.dataset.rowSub && !$('megaFlyout').hidden) {
+          megaGo(row.dataset.rowMain, [['sub', row.dataset.rowSub]]);
+        } else renderFlyout(megaOpenTab, row);
+      } else megaGo(row.dataset.rowMain, [['sub', row.dataset.rowSub]]);
+      return;
+    }
     const all = e.target.closest('[data-mega-main]');
     if (all) { megaGo(all.dataset.megaMain, []); return; }
-    if (e.target.closest('[data-view]')) closeMega();
   });
   $('megaPanel').addEventListener('mouseover', e => {
-    const tile = e.target.closest('[data-tile-main]');
-    if (tile && megaOpenTab && flyFor !== tile.dataset.tileMain + '|' + tile.dataset.tileSub) {
-      renderFlyout(megaOpenTab, tile);
-    }
+    const row = e.target.closest('[data-row-main]');
+    if (!row || !megaOpenTab) return;
+    if (row.classList.contains('has-kids')) {
+      if (flyFor !== row.dataset.rowMain + '|' + row.dataset.rowSub) renderFlyout(megaOpenTab, row);
+    } else if (flyFor) hideFlyout();
   });
   document.addEventListener('click', e => { if (!e.target.closest('#mainNav')) closeMega(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMega(); });
