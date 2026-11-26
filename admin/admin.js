@@ -85,7 +85,7 @@ const FALLBACK_LISTS = {
   Network_Status: ['Unlocked', 'Locked', 'N/A'],
   Product_Badge: ['NEW', 'HOT SALE', 'LIMITED', 'BESTSELLER', 'NONE'],
   Check_Status: ['Pending', 'Checked'],
-  Price_Tier: ['Guest', 'Retail', 'Wholesale', 'Business'],
+  Price_Tier: ['Guest', 'Retail', 'Wholesale', 'Business', 'Shopkeeper'],
   Customer_Status: ['Active', 'Inactive', 'Blocked'],
   Payment_Method: ['Cash', 'Bank', 'EasyPaisa-JazzCash', 'Credit'],
   Payment_Mode: ['Cash', 'Bank', 'Wallet'],
@@ -481,6 +481,9 @@ function demoApi(action, p) {
           Object.keys(p).forEach(k => { if (k !== 'password' && p[k] !== undefined) c[k] = p[k]; });
           return { customer: Object.assign({}, c) };
         }
+        const dupP = DB.customers.find(x => p.Phone && x.Phone === p.Phone);
+        if (dupP) throw new Error('Duplicate phone: this number is already registered for ' + dupP.Customer_ID + ' (' + dupP.Name + ').');
+        if (p.Email) { const dupE = DB.customers.find(x => String(x.Email || '').toLowerCase() === String(p.Email).toLowerCase()); if (dupE) throw new Error('Duplicate email: this email is already registered for ' + dupE.Customer_ID + ' (' + dupE.Name + ').'); }
         const c = Object.assign({ Monthly_Target: 0, Current_Month_Spend: 0, Credit_Limit: 0, Current_Credit_Balance: 0, Status: 'Active', Price_Tier: 'Retail', Fallback_Tier: 'Guest', Reference_By: '', Photo_Drive_URL: '', Payment_Due_Date: '' }, p, { Customer_ID: 'CUS-' + (DB.seq.customer++) });
         delete c.password;
         DB.customers.push(c);
@@ -495,6 +498,11 @@ function demoApi(action, p) {
       case 'createOrder': {
         const items = p.Items || [];
         if (!items.length) throw new Error('Order needs at least one item.');
+        if (!p.Customer_ID && p.Customer_Phone) {
+          let gc = DB.customers.find(x => x.Phone === p.Customer_Phone);
+          if (!gc) { gc = { Customer_ID: 'CUS-' + (DB.seq.customer++), Name: p.Customer_Name || 'Customer', Phone: p.Customer_Phone, Email: (p.Customer_Email || '').toLowerCase(), Reference_By: 'Auto (POS/Repair)', Photo_Drive_URL: '', Price_Tier: 'Retail', Monthly_Target: 0, Current_Month_Spend: 0, Fallback_Tier: 'Guest', Credit_Limit: 0, Current_Credit_Balance: 0, Payment_Due_Date: '', Status: 'Active' }; DB.customers.push(gc); }
+          p.Customer_ID = gc.Customer_ID;
+        }
         const cust = p.Customer_ID ? findC(p.Customer_ID) : null;
         const tier = cust ? cust.Price_Tier : 'Guest';
         let cost = 0, total = 0; const lines = [];
@@ -589,6 +597,9 @@ function demoApi(action, p) {
       case 'createRepairJob': {
         const job = { Job_ID: 'REP-' + (DB.seq.repair++), Date_Received: todayISO(), Customer_Name: p.Customer_Name || '', Customer_Phone: p.Customer_Phone || '', Customer_Email: (p.Customer_Email || '').toLowerCase(), Default_Portal_Pass: 'SM-' + Math.floor(100000 + Math.random() * 900000), Device_Brand_Model: p.Device_Brand_Model || '', IMEI_Serial: p.IMEI_Serial || '', Repair_Type: p.Repair_Type || 'Hardware', Reported_Issue: p.Reported_Issue || '', Parts_Used_JSON: '[]', Parts_Cost: 0, Service_Charges: num(p.Service_Charges), Total_Amount: num(p.Service_Charges), Advance_Paid: num(p.Advance_Paid), Balance_Due: num(p.Service_Charges) - num(p.Advance_Paid), Assigned_Technician: p.Assigned_Technician || '', Current_Stage: 'Received', Customer_Comm_Status: 'Not Contacted', Internal_Notes: p.Internal_Notes || '', Last_Updated: todayISO() };
         DB.repairs.unshift(job);
+        if (job.Customer_Phone && !DB.customers.some(x => x.Phone === job.Customer_Phone)) {
+          DB.customers.push({ Customer_ID: 'CUS-' + (DB.seq.customer++), Name: job.Customer_Name || 'Customer', Phone: job.Customer_Phone, Email: job.Customer_Email || '', Reference_By: 'Auto (POS/Repair)', Photo_Drive_URL: '', Price_Tier: 'Retail', Monthly_Target: 0, Current_Month_Spend: 0, Fallback_Tier: 'Guest', Credit_Limit: 0, Current_Credit_Balance: 0, Payment_Due_Date: '', Status: 'Active' });
+        }
         return { repair: Object.assign({}, job) };
       }
       case 'getRepairs': {
@@ -884,6 +895,7 @@ async function loadDashboard() {
       statCard('Total Receivables (customers owe us)', money(d.Total_Receivables), 'warn') +
       statCard('Total Payables (we owe suppliers)', money(d.Total_Payables), 'warn');
   } catch (e) { toast(e.message, 'error'); }
+  loadDashboardCharts();
   try {
     const pd = await api('getProducts', { lowStockOnly: true });
     const low = pd.products || [];
@@ -892,6 +904,179 @@ async function loadDashboard() {
       '<p class="empty-msg">🎉 Nothing is low on stock.</p>';
   } catch (e) { /* dashboard numbers already shown */ }
 }
+/* ================= DASHBOARD CHARTS (hand-made SVG) ================= */
+let customerPhotoData = null;
+
+function dayKey_(v) {
+  if (v === null || v === undefined || v === '') return '';
+  const d = (v instanceof Date) ? v : new Date(v);
+  if (isNaN(d.getTime())) {
+    const m = String(v).match(/(\d{4})-(\d{2})-(\d{2})/);
+    return m ? m[1] + '-' + m[2] + '-' + m[3] : '';
+  }
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function lastDays_(n) {
+  const out = []; const now = new Date();
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+    out.push(dayKey_(d));
+  }
+  return out;
+}
+function shortMoney_(v) {
+  v = num(v);
+  if (Math.abs(v) >= 1000) return 'Rs ' + (v / 1000).toFixed(Math.abs(v) >= 10000 ? 0 : 1) + 'k';
+  return 'Rs ' + Math.round(v);
+}
+function chartCard_(title, svg, legendHtml) {
+  return '<div class="chart-card"><h3>' + title + '</h3>' + svg + (legendHtml || '') + '</div>';
+}
+function lineChartSVG_(labels, values, color) {
+  const W = 560, H = 190, P = 34;
+  const max = Math.max.apply(null, values.concat([1])) * 1.15;
+  const stepX = (W - P * 2) / Math.max(1, values.length - 1);
+  const y = v => H - P - (v / max) * (H - P * 2);
+  const pts = values.map((v, i) => [P + i * stepX, y(v)]);
+  const line = pts.map(p => p.map(n => n.toFixed(1)).join(',')).join(' ');
+  const area = 'M' + pts[0][0].toFixed(1) + ',' + (H - P) + ' L' +
+    pts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' L') +
+    ' L' + pts[pts.length - 1][0].toFixed(1) + ',' + (H - P) + ' Z';
+  let dots = '', labs = '';
+  pts.forEach((p, i) => {
+    dots += '<circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="3.5" fill="' + color + '"><title>' + labels[i] + ': ' + money(values[i]) + '</title></circle>';
+    if (i % 2 === 0 || i === values.length - 1) labs += '<text x="' + p[0].toFixed(1) + '" y="' + (H - 8) + '" class="ch-axis">' + labels[i] + '</text>';
+  });
+  const maxI = values.indexOf(Math.max.apply(null, values));
+  const peak = values[maxI] > 0 ? '<text x="' + pts[maxI][0].toFixed(1) + '" y="' + (pts[maxI][1] - 9).toFixed(1) + '" class="ch-val">' + shortMoney_(values[maxI]) + '</text>' : '';
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" class="chart-svg" role="img"><path d="' + area + '" fill="' + color + '" opacity="0.13"/><polyline points="' + line + '" fill="none" stroke="' + color + '" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>' + dots + peak + labs + '</svg>';
+}
+function candleChartSVG_(days) {
+  const W = 560, H = 190, P = 34;
+  let max = 0, min = Infinity;
+  days.forEach(d => { max = Math.max(max, d.high); min = Math.min(min, d.low); });
+  if (!isFinite(min)) min = 0;
+  max = (max * 1.1) || 1; min = Math.min(0, min);
+  const range = (max - min) || 1;
+  const y = v => H - P - ((v - min) / range) * (H - P * 2);
+  const stepX = (W - P * 2) / Math.max(1, days.length);
+  const bw = Math.min(16, stepX * 0.5);
+  let s = '';
+  days.forEach((d, i) => {
+    const cx = P + stepX * i + stepX / 2;
+    const col = d.close >= d.open ? '#1db954' : '#e5484d';
+    const top = y(Math.max(d.open, d.close)), bot = y(Math.min(d.open, d.close));
+    s += '<line x1="' + cx.toFixed(1) + '" y1="' + y(d.high).toFixed(1) + '" x2="' + cx.toFixed(1) + '" y2="' + y(d.low).toFixed(1) + '" stroke="' + col + '" stroke-width="1.6"/>' +
+      '<rect x="' + (cx - bw / 2).toFixed(1) + '" y="' + top.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + Math.max(2, bot - top).toFixed(1) + '" rx="2" fill="' + col + '"><title>' + d.label + ' — Sales ' + money(d.close) + ' (sab se bara order ' + money(d.high) + ')</title></rect>';
+    if (i % 2 === 0) s += '<text x="' + cx.toFixed(1) + '" y="' + (H - 8) + '" class="ch-axis">' + d.label + '</text>';
+  });
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" class="chart-svg" role="img">' + s + '</svg>';
+}
+function donutSVG_(parts) {
+  const total = parts.reduce((a, p) => a + Math.max(0, num(p.value)), 0);
+  const R = 62, C = 2 * Math.PI * R;
+  let off = 0, segs = '';
+  if (total > 0) {
+    parts.forEach(p => {
+      const frac = Math.max(0, num(p.value)) / total;
+      segs += '<circle cx="90" cy="90" r="' + R + '" fill="none" stroke="' + p.color + '" stroke-width="26" stroke-dasharray="' + (frac * C).toFixed(1) + ' ' + C.toFixed(1) + '" stroke-dashoffset="' + (-off * C).toFixed(1) + '" transform="rotate(-90 90 90)"><title>' + esc(p.label) + ': ' + money(p.value) + '</title></circle>';
+      off += frac;
+    });
+  } else {
+    segs = '<circle cx="90" cy="90" r="' + R + '" fill="none" stroke="#dfe6f2" stroke-width="26"/>';
+  }
+  const legend = '<div class="ch-legend">' + parts.map(p =>
+    '<div><span class="ch-dot" style="background:' + p.color + '"></span>' + esc(p.label) + ' — <b>' + money(p.value) + '</b></div>').join('') + '</div>';
+  const svg = '<svg viewBox="0 0 180 180" class="chart-svg donut" role="img">' + segs +
+    '<text x="90" y="86" class="ch-center">Total</text><text x="90" y="108" class="ch-center-val">' + shortMoney_(total) + '</text></svg>';
+  return { svg: svg, legend: legend };
+}
+function barChartSVG_(labels, a, b) {
+  const W = 560, H = 190, P = 34;
+  const max = Math.max.apply(null, a.concat(b).concat([1])) * 1.15;
+  const y = v => H - P - (v / max) * (H - P * 2);
+  const stepX = (W - P * 2) / labels.length;
+  const bw = Math.min(20, stepX * 0.28);
+  let s = '';
+  labels.forEach((lb, i) => {
+    const cx = P + stepX * i + stepX / 2;
+    s += '<rect x="' + (cx - bw - 2).toFixed(1) + '" y="' + y(a[i]).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + (H - P - y(a[i])).toFixed(1) + '" rx="3" fill="#0B7A75"><title>Income ' + lb + ': ' + money(a[i]) + '</title></rect>' +
+      '<rect x="' + (cx + 2).toFixed(1) + '" y="' + y(b[i]).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + (H - P - y(b[i])).toFixed(1) + '" rx="3" fill="#e5484d"><title>Expenses ' + lb + ': ' + money(b[i]) + '</title></rect>' +
+      '<text x="' + cx.toFixed(1) + '" y="' + (H - 8) + '" class="ch-axis">' + lb + '</text>' +
+      (a[i] > 0 ? '<text x="' + (cx - bw / 2 - 2).toFixed(1) + '" y="' + (y(a[i]) - 5).toFixed(1) + '" class="ch-val-sm">' + shortMoney_(a[i]) + '</text>' : '');
+  });
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" class="chart-svg" role="img">' + s + '</svg>';
+}
+async function loadDashboardCharts() {
+  const wrap = $('dashCharts');
+  if (!wrap) return;
+  try {
+    const results = await Promise.all([
+      api('getOrders', {}).catch(() => ({ orders: [] })),
+      api('getRepairs', {}).catch(() => ({ repairs: [] })),
+      can('getExpenses') ? api('getExpenses', {}).catch(() => ({ expenses: [] })) : Promise.resolve({ expenses: [] })
+    ]);
+    const orders = (results[0].orders || []).filter(o => String(o.Order_Status) !== 'Cancelled');
+    const repairs = (results[1].repairs || []).filter(r => String(r.Current_Stage) !== 'Unrepairable');
+    const expenses = results[2].expenses || [];
+    const days = lastDays_(14);
+    const salesByDay = {}, largestByDay = {};
+    orders.forEach(o => {
+      const k = dayKey_(o.Date); if (!k) return;
+      salesByDay[k] = (salesByDay[k] || 0) + num(o.Total_Amount);
+      largestByDay[k] = Math.max(largestByDay[k] || 0, num(o.Total_Amount));
+    });
+    const salesVals = days.map(k => salesByDay[k] || 0);
+    const dayLabels = days.map(k => k.slice(5));
+    const candles = days.map((k, i) => {
+      const close = salesVals[i];
+      const open = i ? salesVals[i - 1] : close;
+      return { label: dayLabels[i], open: open, close: close, high: Math.max(open, close, largestByDay[k] || 0), low: Math.min(open, close) };
+    });
+    const mk = dayKey_(new Date()).slice(0, 7);
+    let mSales = 0, mRepair = 0, mExp = 0;
+    orders.forEach(o => { if (dayKey_(o.Date).slice(0, 7) === mk) mSales += num(o.Total_Amount); });
+    repairs.forEach(r => { if (dayKey_(r.Date_Received).slice(0, 7) === mk) mRepair += num(r.Total_Amount); });
+    expenses.forEach(x => { if (dayKey_(x.Date).slice(0, 7) === mk) mExp += num(x.Amount); });
+    const months = []; const nowD = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(nowD.getFullYear(), nowD.getMonth() - i, 1);
+      months.push({ key: dayKey_(d).slice(0, 7), label: d.toLocaleString('en', { month: 'short' }) });
+    }
+    const inMonth = (v, key) => dayKey_(v).slice(0, 7) === key;
+    const inc = months.map(m =>
+      orders.filter(o => inMonth(o.Date, m.key)).reduce((a, o) => a + num(o.Total_Amount), 0) +
+      repairs.filter(r => inMonth(r.Date_Received, m.key)).reduce((a, r) => a + num(r.Total_Amount), 0));
+    const exp = months.map(m =>
+      expenses.filter(x => inMonth(x.Date, m.key)).reduce((a, x) => a + num(x.Amount), 0));
+    const donut = donutSVG_([
+      { label: 'Sales', value: mSales, color: '#0B7A75' },
+      { label: 'Repair Income', value: mRepair, color: '#f5a623' },
+      { label: 'Expenses', value: mExp, color: '#e5484d' }
+    ]);
+    wrap.innerHTML =
+      chartCard_('📈 Sales — Last 14 Days', lineChartSVG_(dayLabels, salesVals, '#0B2A5B')) +
+      chartCard_('🕯️ Daily Sales Candles (wick = sab se bara order)', candleChartSVG_(candles)) +
+      chartCard_('🍩 This Month — Paisa Kahan Se / Kahan Gaya', donut.svg, donut.legend) +
+      chartCard_('📊 Last 6 Months — Income vs Expenses', barChartSVG_(months.map(m => m.label), inc, exp),
+        '<div class="ch-legend"><div><span class="ch-dot" style="background:#0B7A75"></span>Income</div><div><span class="ch-dot" style="background:#e5484d"></span>Expenses</div></div>');
+  } catch (e) { wrap.innerHTML = ''; }
+}
+
+/* ---------- Customer photo helpers ---------- */
+function driveThumb_(url) {
+  url = String(url || '');
+  if (!url) return '';
+  const m = url.match(/\/d\/([A-Za-z0-9_-]+)/) || url.match(/[?&]id=([A-Za-z0-9_-]+)/);
+  if (m) return 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w96';
+  return url;
+}
+function custAvatar_(c) {
+  const t = driveThumb_(c.Photo_Drive_URL);
+  if (t) return '<img class="cust-avatar" src="' + esc(t) + '" alt="" loading="lazy" onerror="this.style.display=\'none\'">';
+  return '<span class="cust-avatar cust-initial">' + esc((c.Name || '?').trim().charAt(0).toUpperCase() || '?') + '</span>';
+}
+
 function productTable(products, opts) {
   opts = opts || {};
   const showCost = products.some(p => p.Cost_Price !== undefined);
@@ -955,6 +1140,8 @@ function posUnitPrice(p) {
 }
 function updatePosCustomerInfo() {
   const c = customerById(state.posCustomerId);
+  const gf = $('posGuestFields');
+  if (gf) gf.hidden = !!c;
   const info = $('posCustomerInfo');
   if (!c) { info.textContent = 'Walk-in guest: Guest prices apply. Credit is not available for guests.'; return; }
   info.textContent = 'Tier: ' + c.Price_Tier + ' • Credit limit ' + money(c.Credit_Limit) +
@@ -1091,6 +1278,10 @@ async function posCheckout() {
     Tracking_Notes: $('posNotes').value.trim()
   };
   if (payload.Payment_Method === 'Credit' && $('posDueDate').value) payload.Payment_Due_Date = $('posDueDate').value;
+  if (!state.posCustomerId) {
+    const gPhone = $('posGuestPhone').value.trim();
+    if (gPhone) { payload.Customer_Phone = gPhone; payload.Customer_Name = $('posGuestName').value.trim(); }
+  }
   // Form resets immediately for the next customer; the queue saves in order.
   const linesSnapshot = state.posLines.slice();
   state.posLines = [];
@@ -1112,6 +1303,13 @@ async function posCheckout() {
       const text = invoiceWaText('order', order, c);
       window.open(waLink(c ? c.Phone : '', text), '_blank');
     });
+    // Guest auto-customer ban gaya ho to list refresh + fields saaf.
+    if (payload.Customer_Phone) {
+      $('posGuestName').value = ''; $('posGuestPhone').value = '';
+      if (can('getCustomers')) {
+        try { const cd = await api('getCustomers'); state.customers = cd.customers || []; renderPosCustomerOptions(); } catch (e) {}
+      }
+    }
     // Refresh stock quietly so the next bill sees fresh quantities.
     api('getProducts').then(pd => { state.products = pd.products || state.products; }).catch(() => {});
     $('posScan').focus();
@@ -1586,7 +1784,7 @@ async function loadCustomers() {
     if (!state.customers.length) { wrap.innerHTML = '<p class="empty-msg">No customers found.</p>'; return; }
     wrap.innerHTML = '<table><thead><tr><th>ID</th><th>Customer</th><th>Tier</th><th>Target / Month Spend</th><th>Credit Limit</th><th>Balance Owed</th><th>Due Date</th><th>Status</th><th>Actions</th></tr></thead><tbody>' +
       state.customers.map(c => '<tr><td>' + esc(c.Customer_ID) + '</td>' +
-        '<td class="wrap"><b>' + esc(c.Name) + '</b><br><span class="small muted">' + esc(c.Phone) + ' • ' + esc(c.Email) + '</span></td>' +
+        '<td class="wrap"><span class="cust-cell">' + custAvatar_(c) + '<span><b>' + esc(c.Name) + '</b><br><span class="small muted">' + esc(c.Phone) + ' • ' + esc(c.Email) + '</span></span></span></td>' +
         '<td><span class="pill blue">' + esc(c.Price_Tier) + '</span><br><span class="small muted">fallback ' + esc(c.Fallback_Tier) + '</span></td>' +
         '<td>' + money(c.Monthly_Target) + ' / ' + money(c.Current_Month_Spend) + '</td>' +
         '<td>' + money(c.Credit_Limit) + '</td>' +
@@ -1626,6 +1824,10 @@ function openCustomerModal(c) {
     const el = $('cf_' + f);
     if (el) el.value = c && c[f] !== undefined && c[f] !== null ? c[f] : '';
   });
+  customerPhotoData = null;
+  const pf = $('cf_PhotoFile'); if (pf) pf.value = '';
+  const pv = $('cf_PhotoPreview');
+  if (pv) { const t = c ? driveThumb_(c.Photo_Drive_URL) : ''; pv.hidden = !t; if (t) pv.src = t; }
   $('customerError').hidden = true;
   $('customerModal').hidden = false;
 }
@@ -1643,6 +1845,7 @@ async function submitCustomerForm(ev) {
   if (id) payload.Customer_ID = id;
   const pw = $('cf_Password').value;
   if (pw) payload.password = pw;
+  if (customerPhotoData) { payload.photoBase64 = customerPhotoData.base64; payload.photoContentType = customerPhotoData.type; }
   try {
     await queueWrite('saveCustomer', payload);
     $('customerModal').hidden = true;
@@ -2171,6 +2374,21 @@ function bindEvents() {
   $('cusSearch').addEventListener('input', loadCustomers);
   $('cusAddBtn').addEventListener('click', () => { if (guard('saveCustomer')) openCustomerModal(null); });
   $('customerForm').addEventListener('submit', submitCustomerForm);
+  const photoFileEl = $('cf_PhotoFile');
+  if (photoFileEl) photoFileEl.addEventListener('change', () => {
+    const f = photoFileEl.files && photoFileEl.files[0];
+    if (!f) return;
+    if (f.size > 3 * 1024 * 1024) { toast('Photo 3MB se chhoti rakhein.', 'error'); photoFileEl.value = ''; return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result || '');
+      customerPhotoData = { base64: dataUrl.split(',')[1] || '', type: f.type || 'image/jpeg' };
+      const pv = $('cf_PhotoPreview');
+      if (pv) { pv.src = dataUrl; pv.hidden = false; }
+      toast('📷 Photo tayyar hai — Save dabane par profile mein lag jayegi.', 'success');
+    };
+    reader.readAsDataURL(f);
+  });
   // Ledger
   $('ledPartyType').addEventListener('change', refreshLedgerPartyOptions);
   $('ledLoadBtn').addEventListener('click', loadLedger);

@@ -79,6 +79,7 @@
           <button id="dashRefresh" class="btn btn-ghost" type="button">↻ Refresh</button>
         </div>
         <div id="dashCards" class="cards-grid"></div>
+        <div id="dashCharts" class="charts-grid"></div>
         <h3>⚠️ Low Stock — order soon</h3>
         <div id="dashLowStock" class="table-wrap"></div>
       </section>
@@ -109,6 +110,17 @@
               <select id="posCustomerSel"></select>
             </label>
             <p id="posCustomerInfo" class="small muted"></p>
+            <div id="posGuestFields">
+              <div class="two-col">
+                <label>Guest Name (optional)
+                  <input id="posGuestName" type="text" placeholder="e.g. Ahmed Raza">
+                </label>
+                <label>Guest Phone (optional)
+                  <input id="posGuestPhone" type="tel" placeholder="03xx-xxxxxxx">
+                </label>
+              </div>
+              <p class="small muted">📇 Phone likhne se ye shakhs <b>Customers</b> mein auto-save ho jayega.</p>
+            </div>
             <label>Payment Method
               <select id="posPayment"></select>
             </label>
@@ -441,12 +453,19 @@
       <label>Name <input id="cf_Name" type="text" required></label>
       <div class="two-col">
         <label>Phone <input id="cf_Phone" type="tel" required></label>
-        <label>Email <input id="cf_Email" type="email" required></label>
+        <label>Email (optional) <input id="cf_Email" type="email" placeholder="Na ho to khaali chhor dein"></label>
       </div>
       <label>Set / Reset Password <input id="cf_Password" type="password" placeholder="Leave blank to keep the old password" autocomplete="new-password"></label>
       <div class="two-col">
         <label>Reference By <input id="cf_Reference_By" type="text"></label>
         <label>Photo Drive URL <input id="cf_Photo_Drive_URL" type="url" placeholder="https://…"></label>
+      </div>
+      <div class="photo-row">
+        <img id="cf_PhotoPreview" class="cust-avatar-lg" alt="" hidden>
+        <label class="photo-pick">📷 Customer ki photo lagayein
+          <input id="cf_PhotoFile" type="file" accept="image/*">
+        </label>
+        <span class="small muted">Photo usi waqt profile mein lag jayegi aur Customers list mein nazar aayegi.</span>
       </div>
       <div class="two-col">
         <label>Price Tier <select id="cf_Price_Tier"></select></label>

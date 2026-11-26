@@ -234,3 +234,26 @@ tr.low-stock:hover td{background:#FFEDD5}
   .no-print{display:none !important}
   @page{margin:12mm}
 }
+
+/* ===== Dashboard charts (v2.3) ===== */
+.charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin: 14px 0 6px; }
+.chart-card { background: var(--card, #fff); border: 1px solid rgba(120,130,150,.25); border-radius: 16px; padding: 14px 16px; box-shadow: 0 4px 14px rgba(11,42,91,.06); }
+.chart-card h3 { margin: 0 0 8px; font-size: .98rem; }
+.chart-svg { width: 100%; height: auto; display: block; }
+.chart-svg.donut { max-width: 190px; margin: 0 auto; }
+.ch-axis { font-size: 10px; fill: #7a8699; text-anchor: middle; }
+.ch-val { font-size: 12px; font-weight: 800; fill: #0B2A5B; text-anchor: middle; }
+.ch-val-sm { font-size: 10px; font-weight: 700; fill: #0B7A75; text-anchor: middle; }
+.ch-center { font-size: 12px; fill: #7a8699; text-anchor: middle; }
+.ch-center-val { font-size: 17px; font-weight: 800; fill: #12233f; text-anchor: middle; }
+.ch-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; font-size: .88rem; }
+.ch-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+
+/* ===== Customer photos (v2.3) ===== */
+.cust-cell { display: inline-flex; align-items: center; gap: 10px; }
+.cust-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; flex: none; border: 2px solid rgba(11,42,91,.15); }
+.cust-initial { display: inline-flex; align-items: center; justify-content: center; background: #0B2A5B; color: #fff; font-weight: 800; font-size: 1.05rem; }
+.cust-avatar-lg { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(11,42,91,.2); }
+.photo-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 10px 0; }
+.photo-pick { background: #e8eefb; color: #0B2A5B; font-weight: 700; padding: 9px 14px; border-radius: 999px; cursor: pointer; }
+.photo-pick input { display: none; }
